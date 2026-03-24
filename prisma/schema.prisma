@@ -1,0 +1,125 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserStatus {
+  active
+  suspended
+  deleted
+}
+
+enum UserRole {
+  user
+  admin
+  super_admin
+}
+
+enum TransactionType {
+  deposit
+  withdrawal
+  transfer
+  trade
+  bill
+  giftcard
+}
+
+enum TransactionStatus {
+  pending
+  success
+  failed
+  cancelled
+}
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  passwordHash  String    @map("password_hash")
+  firstName     String?   @map("first_name")
+  lastName      String?   @map("last_name")
+  phone         String?
+  status        UserStatus @default(active)
+  role          UserRole   @default(user)
+  emailVerified Boolean   @default(false) @map("email_verified")
+  otpCode       String?   @map("otp_code")
+  otpExpiresAt  DateTime? @map("otp_expires_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  wallets       Wallet[]
+  transactions  Transaction[]
+  activityLogs  ActivityLog[]
+
+  @@map("users")
+}
+
+model Wallet {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  currency  String   // NGN, BTC, ETH, USDT
+  balance   Decimal  @default(0) @db.Decimal(20, 8)
+  isCrypto  Boolean  @default(false) @map("is_crypto")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, currency])
+  @@map("wallets")
+}
+
+model Transaction {
+  id          String            @id @default(uuid())
+  userId      String            @map("user_id")
+  type        TransactionType
+  subtype     String?
+  currency    String?
+  amount      Decimal           @db.Decimal(20, 8)
+  fee         Decimal           @default(0) @db.Decimal(20, 8)
+  status      TransactionStatus @default(pending)
+  reference   String            @unique
+  description String?
+  metadata    Json?
+  createdAt   DateTime          @default(now()) @map("created_at")
+  updatedAt   DateTime          @updatedAt @map("updated_at")
+
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([type])
+  @@index([status])
+  @@index([createdAt])
+  @@map("transactions")
+}
+
+model Setting {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  value       Json
+  description String?
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("settings")
+}
+
+model ActivityLog {
+  id         String   @id @default(uuid())
+  userId     String?  @map("user_id")
+  action     String
+  entityType String?  @map("entity_type")
+  entityId   String?  @map("entity_id")
+  details    Json?
+  ipAddress  String?  @map("ip_address")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("activity_logs")
+}
