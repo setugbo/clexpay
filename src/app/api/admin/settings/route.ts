@@ -2,7 +2,23 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import prisma from '@/lib/prisma';
-import { getCurrentMode } from '@/lib/services/factory';
+
+export const dynamic = 'force-dynamic';
+
+async function getCurrentMode(): Promise<string> {
+  try {
+    const setting = await prisma.setting.findUnique({
+      where: { key: 'system_mode' },
+    });
+    if (setting && typeof setting.value === 'object' && setting.value !== null) {
+      const value = setting.value as { mode?: string };
+      return value.mode === 'live' ? 'live' : 'demo';
+    }
+  } catch {
+    return 'demo';
+  }
+  return 'demo';
+}
 
 export async function GET(request: NextRequest) {
   try {
