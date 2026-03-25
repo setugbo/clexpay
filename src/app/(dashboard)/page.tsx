@@ -27,6 +27,12 @@ interface TransactionData {
   createdAt: string;
 }
 
+interface ExchangeRates {
+  BTC_NGN: number;
+  ETH_NGN: number;
+  USDT_NGN: number;
+}
+
 async function fetchWallets(): Promise<WalletData[]> {
   const res = await fetch('/api/wallet');
   const data = await res.json();
@@ -41,7 +47,7 @@ async function fetchTransactions(): Promise<{ transactions: TransactionData[] }>
   return data.data;
 }
 
-async function fetchRates(): Promise<Record<string, number>> {
+async function fetchRates(): Promise<ExchangeRates> {
   const res = await fetch('/api/crypto');
   const data = await res.json();
   if (!data.success) throw new Error(data.error);
