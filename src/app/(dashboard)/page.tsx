@@ -70,7 +70,7 @@ export default function DashboardPage() {
   const cryptoWallets = wallets?.filter((w: WalletData) => w.isCrypto) || [];
 
   const totalCryptoValue = cryptoWallets.reduce((sum: number, w: WalletData) => {
-    const rate = w.currency === 'BTC' ? rates?.BTC_NGN : w.currency === 'ETH' ? rates?.ETH_NGN : rates?.USDT_NGN || 1;
+    const rate = w.currency === 'BTC' ? (rates?.BTC_NGN ?? 0) : w.currency === 'ETH' ? (rates?.ETH_NGN ?? 0) : (rates?.USDT_NGN ?? 1);
     const balance = typeof w.balance === 'string' ? parseFloat(w.balance) : w.balance;
     return sum + (balance * rate);
   }, 0);
