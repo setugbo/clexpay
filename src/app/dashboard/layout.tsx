@@ -152,7 +152,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               {userMenuOpen && (
                 <div className="absolute bottom-full left-0 right-0 mb-2 bg-white rounded-xl border shadow-lg p-2">
                   <button
-                    onClick={() => signOut({ callbackUrl: '/login' })}
+                    onClick={() => signOut({ callbackUrl: '/auth/login' })}
                     className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm text-red-600 hover:bg-red-50 transition-colors"
                   >
                     <LogOut className="h-4 w-4" />

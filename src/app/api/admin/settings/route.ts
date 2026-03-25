@@ -42,11 +42,13 @@ export async function GET(request: NextRequest) {
       settingsObj[setting.key] = setting.value;
     }
 
+    const currentMode = await getCurrentMode();
+
     return NextResponse.json({
       success: true,
       data: {
         ...settingsObj,
-        currentMode: getCurrentMode(),
+        currentMode,
       },
     });
   } catch (error) {

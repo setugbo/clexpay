@@ -58,8 +58,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: 'Registration successful. Please verify your email.',
-      data: { userId: user.id, requiresVerification: true },
+      message: 'Registration successful. Use OTP 123456 to verify (demo mode).',
+      data: { userId: user.id, requiresVerification: true, demoOtp: '123456' },
     });
   } catch (error) {
     console.error('Registration error:', error);

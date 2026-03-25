@@ -251,7 +251,7 @@ export default function RegisterPage() {
                   <Label htmlFor="otp">Verification Code</Label>
                   <Input
                     id="otp"
-                    placeholder="Enter 6-digit code"
+                    placeholder="Enter 6-digit code (use 123456 for demo)"
                     value={otp}
                     onChange={(e) => setOtp(e.target.value)}
                     maxLength={6}

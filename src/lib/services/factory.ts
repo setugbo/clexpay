@@ -77,6 +77,6 @@ export async function giftCardServiceFactory(): Promise<IGiftCardService> {
   return mode === 'demo' ? new DemoGiftCardService() : new LiveGiftCardService();
 }
 
-export function getCurrentMode(): 'demo' | 'live' {
+export async function getCurrentMode(): Promise<'demo' | 'live'> {
   return systemMode;
 }

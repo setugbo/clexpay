@@ -87,7 +87,7 @@ export async function POST() {
       update: {},
       create: {
         key: 'system_mode',
-        value: 'demo',
+        value: { mode: 'demo' },
         description: 'System operating mode: demo or live',
       },
     });

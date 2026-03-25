@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      data: { mode: getCurrentMode() },
+      data: { mode: await getCurrentMode() },
     });
   } catch (error) {
     console.error('Switch mode error:', error);
