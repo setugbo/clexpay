@@ -115,7 +115,7 @@ function LoginForm() {
 
             <div className="mt-6 text-center text-sm">
               <span className="text-slate-600">Don&apos;t have an account? </span>
-              <Link href="/register" className="text-emerald-600 hover:text-emerald-700 font-medium">
+              <Link href="/auth/register" className="text-emerald-600 hover:text-emerald-700 font-medium">
                 Sign up
               </Link>
             </div>

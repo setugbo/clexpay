@@ -20,10 +20,10 @@ export default function HomePage() {
             <Link href="#giftcards" className="text-sm font-medium text-slate-600 hover:text-slate-900">Gift Cards</Link>
           </nav>
           <div className="flex items-center gap-3">
-            <Link href="/login">
+            <Link href="/auth/login">
               <Button variant="ghost" size="sm">Sign In</Button>
             </Link>
-            <Link href="/register">
+            <Link href="/auth/register">
               <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700">Get Started</Button>
             </Link>
           </div>
@@ -47,13 +47,13 @@ export default function HomePage() {
                 Built for Africa, designed for everyone.
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <Link href="/register">
+                <Link href="/auth/register">
                   <Button size="xl" className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700">
                     Start Trading Now
                     <ArrowRight className="ml-2 h-5 w-5" />
                   </Button>
                 </Link>
-                <Link href="/login">
+                <Link href="/auth/login">
                   <Button variant="outline" size="xl" className="w-full sm:w-auto">
                     Try Demo
                   </Button>
@@ -141,7 +141,7 @@ export default function HomePage() {
             <p className="text-emerald-100 mb-8 max-w-xl mx-auto">
               Join thousands of users who trust Clexpay for their daily financial needs
             </p>
-            <Link href="/register">
+            <Link href="/auth/register">
               <Button size="xl" variant="outline" className="bg-white text-emerald-600 border-white hover:bg-emerald-50">
                 Create Free Account
                 <ArrowRight className="ml-2 h-5 w-5" />
