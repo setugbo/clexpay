@@ -7,29 +7,29 @@ const prisma = new PrismaClient();
 
 export class DemoWalletService implements IWalletService {
   async getWallets(userId: string): Promise<Wallet[]> {
-    let wallets = await prisma.wallet.findMany({
+    const wallets = await prisma.wallet.findMany({
       where: { userId },
       orderBy: { currency: 'asc' },
     });
 
     if (wallets.length === 0) {
-      wallets = await this.initializeWallets(userId);
+      return this.initializeWallets(userId);
     }
 
-    return wallets;
+    return wallets as Wallet[];
   }
 
   async getWallet(userId: string, currency: string): Promise<Wallet | null> {
-    let wallet = await prisma.wallet.findUnique({
+    const wallet = await prisma.wallet.findUnique({
       where: { userId_currency: { userId, currency } },
     });
 
     if (!wallet) {
       const wallets = await this.initializeWallets(userId);
-      wallet = wallets.find(w => w.currency === currency);
+      return wallets.find(w => w.currency === currency) || null;
     }
 
-    return wallet;
+    return wallet as Wallet;
   }
 
   async fundWallet(userId: string, currency: string, amount: number): Promise<Transaction> {
