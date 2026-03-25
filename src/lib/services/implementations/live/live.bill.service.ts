@@ -1,4 +1,4 @@
-import { IBillService } from '../interfaces/bill.service.interface';
+import { IBillService } from '../../interfaces/bill.service.interface';
 import { BillService, BillProduct, Transaction } from '@/types';
 
 export class LiveBillService implements IBillService {

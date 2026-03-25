@@ -1,4 +1,4 @@
-import { IWalletService } from '../interfaces/wallet.service.interface';
+import { IWalletService } from '../../interfaces/wallet.service.interface';
 import { Wallet, Transaction } from '@/types';
 
 export class LiveWalletService implements IWalletService {

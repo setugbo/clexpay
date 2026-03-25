@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client';
-import { IBillService } from '../interfaces/bill.service.interface';
+import { IBillService } from '../../interfaces/bill.service.interface';
 import { BillService, BillProduct, Transaction } from '@/types';
 import { generateReference } from '@/lib/utils';
 

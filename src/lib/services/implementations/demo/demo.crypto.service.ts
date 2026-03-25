@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client';
-import { ICryptoService } from '../interfaces/crypto.service.interface';
+import { ICryptoService } from '../../interfaces/crypto.service.interface';
 import { ExchangeRates, Transaction } from '@/types';
 import { generateReference } from '@/lib/utils';
 

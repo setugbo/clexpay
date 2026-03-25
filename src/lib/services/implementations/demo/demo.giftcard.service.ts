@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client';
-import { IGiftCardService } from '../interfaces/giftcard.service.interface';
+import { IGiftCardService } from '../../interfaces/giftcard.service.interface';
 import { GiftCardCategory, GiftCardProduct, Transaction } from '@/types';
 import { generateReference } from '@/lib/utils';
 

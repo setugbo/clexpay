@@ -1,4 +1,4 @@
-import { ICryptoService } from '../interfaces/crypto.service.interface';
+import { ICryptoService } from '../../interfaces/crypto.service.interface';
 import { ExchangeRates, Transaction } from '@/types';
 
 export class LiveCryptoService implements ICryptoService {

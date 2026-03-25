@@ -1,4 +1,4 @@
-import { IGiftCardService } from '../interfaces/giftcard.service.interface';
+import { IGiftCardService } from '../../interfaces/giftcard.service.interface';
 import { GiftCardCategory, GiftCardProduct, Transaction } from '@/types';
 
 export class LiveGiftCardService implements IGiftCardService {

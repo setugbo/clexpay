@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client';
-import { IWalletService } from '../interfaces/wallet.service.interface';
+import { IWalletService } from '../../interfaces/wallet.service.interface';
 import { Wallet, Transaction } from '@/types';
 import { generateReference } from '@/lib/utils';
 
