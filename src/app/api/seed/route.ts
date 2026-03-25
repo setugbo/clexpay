@@ -108,8 +108,9 @@ export async function POST() {
     });
   } catch (error) {
     console.error('Seed error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
-      { success: false, error: 'Failed to seed database' },
+      { success: false, error: errorMessage, details: String(error) },
       { status: 500 }
     );
   }
