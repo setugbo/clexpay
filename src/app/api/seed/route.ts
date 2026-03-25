@@ -4,6 +4,10 @@ import bcrypt from 'bcryptjs';
 
 export const dynamic = 'force-dynamic';
 
+export async function GET() {
+  return POST();
+}
+
 export async function POST() {
   try {
     const passwordHash = await bcrypt.hash('Clexpay@2024', 12);
