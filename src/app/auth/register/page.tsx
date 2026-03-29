@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { signIn } from 'next-auth/react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,6 +18,7 @@ export default function RegisterPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [userEmail, setUserEmail] = useState('');
+  const [userPassword, setUserPassword] = useState('');
   const [otp, setOtp] = useState('');
   const [formData, setFormData] = useState({
     email: '',
@@ -61,12 +63,31 @@ export default function RegisterPage() {
 
       if (!response.ok) {
         setError(data.error || 'Registration failed');
+        setIsLoading(false);
         return;
       }
 
-      setUserEmail(formData.email);
-      setSuccess('Account created! Please verify your email.');
-      setStep('verify');
+      if (data.data?.verified) {
+        setSuccess('Account created! Logging you in...');
+        const signInResult = await signIn('credentials', {
+          email: formData.email,
+          password: formData.password,
+          redirect: false,
+        });
+
+        if (signInResult?.ok) {
+          router.push('/dashboard');
+        } else {
+          setUserEmail(formData.email);
+          setUserPassword(formData.password);
+          setStep('verify');
+        }
+      } else {
+        setUserEmail(formData.email);
+        setUserPassword(formData.password);
+        setSuccess('Account created! Please verify your email.');
+        setStep('verify');
+      }
     } catch {
       setError('An unexpected error occurred');
     } finally {
@@ -90,10 +111,21 @@ export default function RegisterPage() {
 
       if (!response.ok) {
         setError(data.error || 'Verification failed');
+        setIsLoading(false);
         return;
       }
 
-      router.push('/login?verified=true');
+      const signInResult = await signIn('credentials', {
+        email: userEmail,
+        password: userPassword,
+        redirect: false,
+      });
+
+      if (signInResult?.ok) {
+        router.push('/dashboard');
+      } else {
+        router.push('/auth/login?verified=true');
+      }
     } catch {
       setError('An unexpected error occurred');
     } finally {
@@ -102,15 +134,23 @@ export default function RegisterPage() {
   };
 
   const handleResend = async () => {
+    setIsLoading(true);
     try {
-      await fetch('/api/auth/resend-otp', {
+      const response = await fetch('/api/auth/resend-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: userEmail }),
       });
-      setSuccess('OTP resent to your email');
+      const data = await response.json();
+      if (data.success) {
+        setSuccess('OTP resent to your email');
+      } else {
+        setError(data.error || 'Failed to resend OTP');
+      }
     } catch {
       setError('Failed to resend OTP');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -251,7 +291,7 @@ export default function RegisterPage() {
                   <Label htmlFor="otp">Verification Code</Label>
                   <Input
                     id="otp"
-                    placeholder="Enter 6-digit code (use 123456 for demo)"
+                    placeholder="Enter 6-digit code"
                     value={otp}
                     onChange={(e) => setOtp(e.target.value)}
                     maxLength={6}
@@ -268,12 +308,12 @@ export default function RegisterPage() {
                       Verifying...
                     </>
                   ) : (
-                    'Verify'
+                    'Verify & Login'
                   )}
                 </Button>
 
                 <div className="text-center text-sm">
-                  <button type="button" onClick={handleResend} className="text-emerald-600 hover:text-emerald-700">
+                  <button type="button" onClick={handleResend} disabled={isLoading} className="text-emerald-600 hover:text-emerald-700">
                     Resend code
                   </button>
                 </div>

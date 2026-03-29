@@ -2,9 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import prisma from '@/lib/prisma';
 import { generateOTP } from '@/lib/utils';
-import { sendOTPEmail } from '@/lib/email';
+import { sendOTPEmail, sendWelcomeEmail } from '@/lib/email';
 
 export const dynamic = 'force-dynamic';
+
+const isDemoMode = process.env.NODE_ENV === 'development' || process.env.DEMO_MODE === 'true';
 
 export async function POST(request: NextRequest) {
   try {
@@ -14,6 +16,13 @@ export async function POST(request: NextRequest) {
     if (!email || !password) {
       return NextResponse.json(
         { success: false, error: 'Email and password are required' },
+        { status: 400 }
+      );
+    }
+
+    if (password.length < 6) {
+      return NextResponse.json(
+        { success: false, error: 'Password must be at least 6 characters' },
         { status: 400 }
       );
     }
@@ -33,16 +42,24 @@ export async function POST(request: NextRequest) {
     const otpCode = generateOTP();
     const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
+    const userData: Record<string, unknown> = {
+      email,
+      passwordHash,
+      firstName,
+      lastName,
+      phone,
+    };
+
+    if (isDemoMode) {
+      userData.emailVerified = true;
+      userData.status = 'active';
+    } else {
+      userData.otpCode = otpCode;
+      userData.otpExpiresAt = otpExpiresAt;
+    }
+
     const user = await prisma.user.create({
-      data: {
-        email,
-        passwordHash,
-        firstName,
-        lastName,
-        phone,
-        otpCode,
-        otpExpiresAt,
-      },
+      data: userData as Parameters<typeof prisma.user.create>[0]['data'],
     });
 
     await prisma.wallet.createMany({
@@ -54,13 +71,28 @@ export async function POST(request: NextRequest) {
       ],
     });
 
-    await sendOTPEmail(email, otpCode);
-
-    return NextResponse.json({
-      success: true,
-      message: 'Registration successful. Use OTP 123456 to verify (demo mode).',
-      data: { userId: user.id, requiresVerification: true, demoOtp: '123456' },
-    });
+    if (isDemoMode) {
+      await sendWelcomeEmail(email, firstName || 'User');
+      return NextResponse.json({
+        success: true,
+        message: 'Account created successfully!',
+        data: { 
+          userId: user.id, 
+          verified: true,
+          demoMode: true,
+        },
+      });
+    } else {
+      await sendOTPEmail(email, otpCode);
+      return NextResponse.json({
+        success: true,
+        message: 'Registration successful. Please verify your email.',
+        data: { 
+          userId: user.id, 
+          requiresVerification: true,
+        },
+      });
+    }
   } catch (error) {
     console.error('Registration error:', error);
     return NextResponse.json(

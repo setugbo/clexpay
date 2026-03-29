@@ -14,12 +14,7 @@ import { LiveGiftCardService } from './implementations/live/live.giftcard.servic
 
 const prisma = new PrismaClient();
 
-let systemMode: 'demo' | 'live' = 'demo';
-let modeChecked = false;
-
 async function getSystemMode(): Promise<'demo' | 'live'> {
-  if (modeChecked) return systemMode;
-
   try {
     const setting = await prisma.setting.findUnique({
       where: { key: 'system_mode' },
@@ -28,33 +23,42 @@ async function getSystemMode(): Promise<'demo' | 'live'> {
     if (setting && typeof setting.value === 'object' && setting.value !== null) {
       const value = setting.value as { mode?: string };
       if (value.mode === 'demo' || value.mode === 'live') {
-        systemMode = value.mode;
+        return value.mode;
       }
-    } else {
-      await prisma.setting.upsert({
-        where: { key: 'system_mode' },
-        update: { value: { mode: 'demo' } },
-        create: { key: 'system_mode', value: { mode: 'demo' } },
+    }
+
+    const existingSetting = await prisma.setting.findUnique({
+      where: { key: 'system_mode' },
+    });
+
+    if (!existingSetting) {
+      await prisma.setting.create({
+        data: {
+          key: 'system_mode',
+          value: { mode: 'demo' },
+          description: 'System operating mode: demo or live',
+        },
       });
     }
 
-    modeChecked = true;
-  } catch {
-    console.warn('Could not fetch system mode, defaulting to demo');
+    return 'demo';
+  } catch (error) {
+    console.error('Error fetching system mode:', error);
+    return 'demo';
   }
-
-  return systemMode;
 }
 
 export async function setSystemMode(mode: 'demo' | 'live'): Promise<void> {
-  systemMode = mode;
-  modeChecked = true;
-
-  await prisma.setting.upsert({
-    where: { key: 'system_mode' },
-    update: { value: { mode } },
-    create: { key: 'system_mode', value: { mode } },
-  });
+  try {
+    await prisma.setting.upsert({
+      where: { key: 'system_mode' },
+      update: { value: { mode } },
+      create: { key: 'system_mode', value: { mode }, description: 'System operating mode: demo or live' },
+    });
+  } catch (error) {
+    console.error('Error setting system mode:', error);
+    throw error;
+  }
 }
 
 export async function walletServiceFactory(): Promise<IWalletService> {
@@ -78,5 +82,55 @@ export async function giftCardServiceFactory(): Promise<IGiftCardService> {
 }
 
 export async function getCurrentMode(): Promise<'demo' | 'live'> {
-  return systemMode;
+  return getSystemMode();
+}
+
+export async function getExchangeRates(): Promise<Record<string, number>> {
+  try {
+    const setting = await prisma.setting.findUnique({
+      where: { key: 'exchange_rates' },
+    });
+
+    if (setting && typeof setting.value === 'object' && setting.value !== null) {
+      return setting.value as Record<string, number>;
+    }
+
+    return {
+      BTC_NGN: 50000000,
+      ETH_NGN: 3500000,
+      USDT_NGN: 1500,
+    };
+  } catch {
+    return {
+      BTC_NGN: 50000000,
+      ETH_NGN: 3500000,
+      USDT_NGN: 1500,
+    };
+  }
+}
+
+export async function getFees(): Promise<Record<string, number>> {
+  try {
+    const setting = await prisma.setting.findUnique({
+      where: { key: 'fees' },
+    });
+
+    if (setting && typeof setting.value === 'object' && setting.value !== null) {
+      return setting.value as Record<string, number>;
+    }
+
+    return {
+      cryptoBuy: 0.5,
+      cryptoSell: 0.5,
+      transfer: 0,
+      bill: 100,
+    };
+  } catch {
+    return {
+      cryptoBuy: 0.5,
+      cryptoSell: 0.5,
+      transfer: 0,
+      bill: 100,
+    };
+  }
 }
