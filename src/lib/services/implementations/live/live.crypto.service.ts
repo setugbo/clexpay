@@ -8,7 +8,8 @@ const prisma = new PrismaClient();
 
 export class LiveCryptoService implements ICryptoService {
   async getRates(): Promise<ExchangeRates> {
-    return getExchangeRates() as Promise<ExchangeRates>;
+    const rates = await getExchangeRates();
+    return rates as ExchangeRates;
   }
 
   async buyCrypto(userId: string, fromCurrency: string, toCurrency: string, amount: number): Promise<Transaction> {
