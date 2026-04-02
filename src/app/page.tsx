@@ -20,11 +20,14 @@ export default function HomePage() {
             <Link href="#giftcards" className="text-sm font-medium text-slate-600 hover:text-slate-900">Gift Cards</Link>
           </nav>
           <div className="flex items-center gap-3">
+              <Link href="/auth/register">
+              <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700">Get Started</Button>
+            </Link>
             <Link href="/auth/login">
               <Button variant="ghost" size="sm">Sign In</Button>
             </Link>
-            <Link href="/auth/register">
-              <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700">Get Started</Button>
+            <Link href="https://me.clexpay.com/app">
+              <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700">Get App</Button>
             </Link>
           </div>
         </div>
