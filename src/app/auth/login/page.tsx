@@ -63,7 +63,7 @@ function LoginForm() {
           <CardHeader className="space-y-1 pb-4">
             <CardTitle className="text-2xl font-bold text-center">Welcome back</CardTitle>
             <CardDescription className="text-center">
-              Enter your credentials to access your account
+              Sign in to your Clexpay account
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -121,12 +121,6 @@ function LoginForm() {
             </div>
           </CardContent>
         </Card>
-
-        <div className="mt-6 p-4 rounded-xl bg-amber-50 border border-amber-200">
-          <p className="text-sm text-amber-800">
-            <strong>Demo Mode:</strong> Use any email and password to explore the platform.
-          </p>
-        </div>
       </div>
     </div>
   );

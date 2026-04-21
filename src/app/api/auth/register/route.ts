@@ -6,8 +6,6 @@ import { sendOTPEmail, sendWelcomeEmail } from '@/lib/email';
 
 export const dynamic = 'force-dynamic';
 
-const isDemoMode = process.env.NODE_ENV === 'development' || process.env.DEMO_MODE === 'true';
-
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -42,57 +40,39 @@ export async function POST(request: NextRequest) {
     const otpCode = generateOTP();
     const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
-    const userData: Record<string, unknown> = {
-      email,
-      passwordHash,
-      firstName,
-      lastName,
-      phone,
-    };
-
-    if (isDemoMode) {
-      userData.emailVerified = true;
-      userData.status = 'active';
-    } else {
-      userData.otpCode = otpCode;
-      userData.otpExpiresAt = otpExpiresAt;
-    }
-
     const user = await prisma.user.create({
-      data: userData as Parameters<typeof prisma.user.create>[0]['data'],
+      data: {
+        email,
+        passwordHash,
+        firstName,
+        lastName,
+        phone,
+        status: 'active',
+        emailVerified: true,
+        otpCode,
+        otpExpiresAt,
+      },
     });
 
     await prisma.wallet.createMany({
       data: [
-        { userId: user.id, currency: 'NGN', isCrypto: false, balance: 100000 },
-        { userId: user.id, currency: 'BTC', isCrypto: true, balance: 0.01 },
-        { userId: user.id, currency: 'ETH', isCrypto: true, balance: 0.1 },
-        { userId: user.id, currency: 'USDT', isCrypto: true, balance: 100 },
+        { userId: user.id, currency: 'NGN', isCrypto: false, balance: 0 },
+        { userId: user.id, currency: 'BTC', isCrypto: true, balance: 0 },
+        { userId: user.id, currency: 'ETH', isCrypto: true, balance: 0 },
+        { userId: user.id, currency: 'USDT', isCrypto: true, balance: 0 },
       ],
     });
 
-    if (isDemoMode) {
-      await sendWelcomeEmail(email, firstName || 'User');
-      return NextResponse.json({
-        success: true,
-        message: 'Account created successfully!',
-        data: { 
-          userId: user.id, 
-          verified: true,
-          demoMode: true,
-        },
-      });
-    } else {
-      await sendOTPEmail(email, otpCode);
-      return NextResponse.json({
-        success: true,
-        message: 'Registration successful. Please verify your email.',
-        data: { 
-          userId: user.id, 
-          requiresVerification: true,
-        },
-      });
-    }
+    await sendWelcomeEmail(email, firstName || 'User');
+
+    return NextResponse.json({
+      success: true,
+      message: 'Account created successfully! Please fund your wallet to start trading.',
+      data: {
+        userId: user.id,
+        verified: true,
+      },
+    });
   } catch (error) {
     console.error('Registration error:', error);
     return NextResponse.json(
