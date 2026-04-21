@@ -171,6 +171,7 @@ export class ManualGiftCardService {
     });
 
     if (transaction.metadata && typeof transaction.metadata === 'object') {
+      const meta = transaction.metadata as Record<string, unknown>;
       await prisma.activityLog.create({
         data: {
           userId: transaction.userId,
@@ -179,7 +180,7 @@ export class ManualGiftCardService {
           entityId: transaction.id,
           details: {
             cardCode,
-            productName: (transaction.metadata as Record<string, unknown>).productName,
+            productName: String(meta.productName || ''),
           },
         },
       });
