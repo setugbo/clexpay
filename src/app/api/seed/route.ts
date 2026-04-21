@@ -12,7 +12,7 @@ export async function POST() {
   try {
     const passwordHash = await bcrypt.hash('Clexpay@2024', 12);
     const adminHash = await bcrypt.hash('Admin@123', 12);
-    const demoHash = await bcrypt.hash('Demo@1234', 12);
+    const userHash = await bcrypt.hash('User@1234', 12);
 
     const superAdmin = await prisma.user.upsert({
       where: { email: 'wordpressgee@gmail.com' },
@@ -42,53 +42,104 @@ export async function POST() {
       },
     });
 
-    const demoUsers = [
-      { email: 'john.doe@example.com', firstName: 'John', lastName: 'Doe' },
-      { email: 'jane.smith@example.com', firstName: 'Jane', lastName: 'Smith' },
-      { email: 'demo@example.com', firstName: 'Demo', lastName: 'User' },
-    ];
+    const testUser = await prisma.user.upsert({
+      where: { email: 'test@clexpay.com' },
+      update: {},
+      create: {
+        email: 'test@clexpay.com',
+        passwordHash: userHash,
+        firstName: 'Test',
+        lastName: 'User',
+        role: 'user',
+        status: 'active',
+        emailVerified: true,
+      },
+    });
 
-    const createdUsers = [];
-    for (const demoUser of demoUsers) {
-      const user = await prisma.user.upsert({
-        where: { email: demoUser.email },
+    const allUsers = [superAdmin, admin, testUser];
+
+    for (const user of allUsers) {
+      await prisma.wallet.upsert({
+        where: { userId_currency: { userId: user.id, currency: 'NGN' } },
         update: {},
         create: {
-          email: demoUser.email,
-          passwordHash: demoHash,
-          firstName: demoUser.firstName,
-          lastName: demoUser.lastName,
-          role: 'user',
-          status: 'active',
-          emailVerified: true,
+          userId: user.id,
+          currency: 'NGN',
+          balance: 500000,
+          isCrypto: false,
         },
       });
-      createdUsers.push(user);
-    }
 
-    for (const user of [superAdmin, admin, ...createdUsers]) {
-      const currencies = ['NGN', 'BTC', 'ETH', 'USDT'];
-      for (const currency of currencies) {
-        await prisma.wallet.upsert({
-          where: { userId_currency: { userId: user.id, currency } },
-          update: {},
-          create: {
-            userId: user.id,
-            currency,
-            balance: currency === 'NGN' ? 100000 : 1,
-            isCrypto: currency !== 'NGN',
-          },
-        });
-      }
+      await prisma.wallet.upsert({
+        where: { userId_currency: { userId: user.id, currency: 'BTC' } },
+        update: {},
+        create: {
+          userId: user.id,
+          currency: 'BTC',
+          balance: 0.05,
+          isCrypto: true,
+        },
+      });
+
+      await prisma.wallet.upsert({
+        where: { userId_currency: { userId: user.id, currency: 'ETH' } },
+        update: {},
+        create: {
+          userId: user.id,
+          currency: 'ETH',
+          balance: 0.5,
+          isCrypto: true,
+        },
+      });
+
+      await prisma.wallet.upsert({
+        where: { userId_currency: { userId: user.id, currency: 'USDT' } },
+        update: {},
+        create: {
+          userId: user.id,
+          currency: 'USDT',
+          balance: 1000,
+          isCrypto: true,
+        },
+      });
     }
 
     await prisma.setting.upsert({
       where: { key: 'system_mode' },
-      update: {},
+      update: { value: { mode: 'live' } },
       create: {
         key: 'system_mode',
-        value: { mode: 'demo' },
-        description: 'System operating mode: demo or live',
+        value: { mode: 'live' },
+        description: 'System operating mode',
+      },
+    });
+
+    await prisma.setting.upsert({
+      where: { key: 'exchange_rates' },
+      update: {},
+      create: {
+        key: 'exchange_rates',
+        value: {
+          BTC_NGN: 50000000,
+          ETH_NGN: 3500000,
+          USDT_NGN: 1500,
+        },
+        description: 'Crypto exchange rates',
+      },
+    });
+
+    await prisma.setting.upsert({
+      where: { key: 'fees' },
+      update: {},
+      create: {
+        key: 'fees',
+        value: {
+          cryptoBuy: 0.5,
+          cryptoSell: 0.5,
+          transfer: 0,
+          bill: 100,
+        },
+        description: 'Transaction fees',
       },
     });
 
@@ -98,12 +149,19 @@ export async function POST() {
       users: {
         superAdmin: superAdmin.email,
         admin: admin.email,
-        demoUsers: createdUsers.map((u) => u.email),
+        testUser: testUser.email,
       },
       credentials: {
         superAdmin: 'wordpressgee@gmail.com / Clexpay@2024',
         admin: 'admin@clexpay.com / Admin@123',
-        demoUsers: 'john.doe@example.com / Demo@1234',
+        testUser: 'test@clexpay.com / User@1234',
+      },
+      mode: 'live',
+      balances: {
+        NGN: 500000,
+        BTC: 0.05,
+        ETH: 0.5,
+        USDT: 1000,
       },
     });
   } catch (error) {
