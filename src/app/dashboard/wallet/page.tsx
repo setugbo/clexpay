@@ -1,14 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Plus, Send, Download, Wallet as WalletIcon } from 'lucide-react';
+import { Loader2, Plus, Send, Download, Wallet as WalletIcon, ExternalLink } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { formatCurrency, formatCrypto, timeAgo } from '@/lib/utils';
 import { useToast } from '@/hooks/toast';
+import { useSearchParams, useRouter } from 'next/navigation';
 
 interface WalletData {
   id: string;
@@ -30,6 +31,11 @@ interface TransactionData {
   createdAt: string;
 }
 
+interface BankData {
+  code: string;
+  name: string;
+}
+
 async function fetchWallets(): Promise<WalletData[]> {
   const res = await fetch('/api/wallet');
   const data = await res.json();
@@ -44,11 +50,40 @@ async function fetchTransactions(): Promise<{ transactions: TransactionData[] }>
   return data.data;
 }
 
-async function walletAction(action: string, body: Record<string, unknown>) {
+async function fetchBanks(): Promise<BankData[]> {
+  const res = await fetch('/api/wallet/withdraw');
+  const data = await res.json();
+  if (!data.success) throw new Error(data.error);
+  return data.data;
+}
+
+async function fundWallet(amount: number): Promise<{ paymentUrl: string; reference: string }> {
+  const res = await fetch('/api/wallet/fund', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ amount }),
+  });
+  const data = await res.json();
+  if (!data.success) throw new Error(data.error);
+  return data.data;
+}
+
+async function withdrawFunds(body: { amount: number; bankCode: string; accountNumber: string; accountName: string }) {
+  const res = await fetch('/api/wallet/withdraw', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json();
+  if (!data.success) throw new Error(data.error);
+  return data.data;
+}
+
+async function transferFunds(body: { amount: number; currency: string; toEmail: string }) {
   const res = await fetch('/api/wallet', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action, ...body }),
+    body: JSON.stringify({ action: 'transfer', ...body }),
   });
   const data = await res.json();
   if (!data.success) throw new Error(data.error);
@@ -57,15 +92,21 @@ async function walletAction(action: string, body: Record<string, unknown>) {
 
 type ModalType = 'fund' | 'withdraw' | 'transfer' | null;
 
-export default function WalletPage() {
+function WalletContent() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const [modal, setModal] = useState<ModalType>(null);
   const [formData, setFormData] = useState({
-    currency: 'NGN',
     amount: '',
     toEmail: '',
+    bankCode: '',
+    accountNumber: '',
+    accountName: '',
   });
+
+  const funded = searchParams.get('funded');
 
   const { data: wallets, isLoading: walletsLoading } = useQuery({
     queryKey: ['wallets'],
@@ -77,22 +118,87 @@ export default function WalletPage() {
     queryFn: fetchTransactions,
   });
 
-  const mutation = useMutation({
-    mutationFn: () => walletAction(modal!, {
-      ...(modal === 'transfer' && { toEmail: formData.toEmail }),
-      currency: formData.currency,
+  const { data: banks } = useQuery({
+    queryKey: ['banks'],
+    queryFn: fetchBanks,
+  });
+
+  useEffect(() => {
+    if (funded === 'true') {
+      queryClient.invalidateQueries({ queryKey: ['wallets'] });
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      toast({
+        title: 'Success',
+        description: 'Wallet funded successfully!',
+        variant: 'success',
+      });
+      router.replace('/dashboard/wallet');
+    }
+  }, [funded]);
+
+  const fundMutation = useMutation({
+    mutationFn: () => fundWallet(parseFloat(formData.amount)),
+    onSuccess: (data) => {
+      toast({
+        title: 'Redirecting to payment...',
+        description: 'Complete payment to fund your wallet',
+      });
+      window.open(data.paymentUrl, '_blank');
+      setModal(null);
+      setFormData({ ...formData, amount: '' });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const withdrawMutation = useMutation({
+    mutationFn: () => withdrawFunds({
       amount: parseFloat(formData.amount),
+      bankCode: formData.bankCode,
+      accountNumber: formData.accountNumber,
+      accountName: formData.accountName,
     }),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['wallets'] });
       queryClient.invalidateQueries({ queryKey: ['transactions'] });
       toast({
         title: 'Success',
-        description: `${modal} successful! Reference: ${data.reference}`,
+        description: `Withdrawal initiated. Ref: ${data.reference}`,
         variant: 'success',
       });
       setModal(null);
-      setFormData({ currency: 'NGN', amount: '', toEmail: '' });
+      setFormData({ amount: '', toEmail: '', bankCode: '', accountNumber: '', accountName: '' });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const transferMutation = useMutation({
+    mutationFn: () => transferFunds({
+      amount: parseFloat(formData.amount),
+      currency: 'NGN',
+      toEmail: formData.toEmail,
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['wallets'] });
+      queryClient.invalidateQueries({ queryKey: ['transactions'] });
+      toast({
+        title: 'Success',
+        description: 'Transfer successful!',
+        variant: 'success',
+      });
+      setModal(null);
+      setFormData({ amount: '', toEmail: '', bankCode: '', accountNumber: '', accountName: '' });
     },
     onError: (error: Error) => {
       toast({
@@ -113,8 +219,19 @@ export default function WalletPage() {
       toast({ title: 'Error', description: 'Please enter recipient email', variant: 'destructive' });
       return;
     }
-    mutation.mutate();
+    if (modal === 'withdraw' && (!formData.bankCode || !formData.accountNumber)) {
+      toast({ title: 'Error', description: 'Please enter bank details', variant: 'destructive' });
+      return;
+    }
+    if (modal === 'fund') fundMutation.mutate();
+    else if (modal === 'withdraw') withdrawMutation.mutate();
+    else if (modal === 'transfer') transferMutation.mutate();
   };
+
+  const totalBalance = wallets?.reduce((sum: number, w: WalletData) => {
+    if (w.currency === 'NGN') return sum + Number(w.balance);
+    return sum;
+  }, 0) || 0;
 
   return (
     <div className="space-y-6">
@@ -130,11 +247,9 @@ export default function WalletPage() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-emerald-100 text-sm font-medium">Total Balance</p>
+                <p className="text-emerald-100 text-sm font-medium">NGN Balance</p>
                 <p className="text-3xl font-bold mt-1">
-                  {formatCurrency(
-                    wallets?.reduce((sum: number, w: WalletData) => sum + Number(w.balance), 0) || 0
-                  )}
+                  {formatCurrency(totalBalance)}
                 </p>
               </div>
               <div className="h-14 w-14 rounded-2xl bg-white/20 flex items-center justify-center">
@@ -250,11 +365,13 @@ export default function WalletPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <Card className="w-full max-w-md">
             <CardHeader>
-              <CardTitle className="capitalize">{modal} {modal === 'fund' ? 'Wallet' : modal === 'withdraw' ? 'Funds' : 'to User'}</CardTitle>
+              <CardTitle className="capitalize">
+                {modal === 'fund' ? 'Fund Wallet' : modal === 'withdraw' ? 'Withdraw Funds' : 'Transfer to User'}
+              </CardTitle>
               <CardDescription>
-                {modal === 'fund' && 'Add funds to your wallet (Demo)'}
-                {modal === 'withdraw' && 'Withdraw funds from your wallet'}
-                {modal === 'transfer' && 'Transfer funds to another user'}
+                {modal === 'fund' && 'Fund via Flutterwave payment (Min: NGN 100)'}
+                {modal === 'withdraw' && 'Withdraw to Nigerian bank account (Min: NGN 500)'}
+                {modal === 'transfer' && 'Transfer to another Clexpay user'}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -272,23 +389,51 @@ export default function WalletPage() {
                     />
                   </div>
                 )}
-                
-                <div className="space-y-2">
-                  <Label htmlFor="currency">Currency</Label>
-                  <select
-                    id="currency"
-                    className="flex h-11 w-full rounded-xl border border-input bg-background px-4 py-2 text-sm"
-                    value={formData.currency}
-                    onChange={(e) => setFormData({ ...formData, currency: e.target.value })}
-                  >
-                    {wallets?.map((w: WalletData) => (
-                      <option key={w.id} value={w.currency}>{w.currency}</option>
-                    ))}
-                  </select>
-                </div>
+
+                {modal === 'withdraw' && (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="accountName">Account Name</Label>
+                      <Input
+                        id="accountName"
+                        placeholder="Account holder name"
+                        value={formData.accountName}
+                        onChange={(e) => setFormData({ ...formData, accountName: e.target.value })}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="bankCode">Bank</Label>
+                      <select
+                        id="bankCode"
+                        className="flex h-11 w-full rounded-xl border border-input bg-background px-4 py-2 text-sm"
+                        value={formData.bankCode}
+                        onChange={(e) => setFormData({ ...formData, bankCode: e.target.value })}
+                        required
+                      >
+                        <option value="">Select Bank</option>
+                        {banks?.map((bank: BankData) => (
+                          <option key={bank.code} value={bank.code}>{bank.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="accountNumber">Account Number</Label>
+                      <Input
+                        id="accountNumber"
+                        placeholder="1234567890"
+                        value={formData.accountNumber}
+                        onChange={(e) => setFormData({ ...formData, accountNumber: e.target.value })}
+                        required
+                      />
+                    </div>
+                  </>
+                )}
 
                 <div className="space-y-2">
-                  <Label htmlFor="amount">Amount</Label>
+                  <Label htmlFor="amount">
+                    Amount ({modal === 'fund' || modal === 'withdraw' ? 'NGN' : formData.amount ? 'NGN' : 'NGN'})
+                  </Label>
                   <Input
                     id="amount"
                     type="number"
@@ -304,14 +449,18 @@ export default function WalletPage() {
                   <Button type="button" variant="outline" className="flex-1" onClick={() => setModal(null)}>
                     Cancel
                   </Button>
-                  <Button type="submit" className="flex-1 bg-emerald-600 hover:bg-emerald-700" disabled={mutation.isPending}>
-                    {mutation.isPending ? (
+                  <Button 
+                    type="submit" 
+                    className="flex-1 bg-emerald-600 hover:bg-emerald-700" 
+                    disabled={fundMutation.isPending || withdrawMutation.isPending || transferMutation.isPending}
+                  >
+                    {fundMutation.isPending || withdrawMutation.isPending || transferMutation.isPending ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                         Processing...
                       </>
                     ) : (
-                      'Confirm'
+                      modal === 'fund' ? 'Proceed to Payment' : 'Confirm'
                     )}
                   </Button>
                 </div>
@@ -321,5 +470,13 @@ export default function WalletPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function WalletPage() {
+  return (
+    <Suspense fallback={<div className="p-8">Loading...</div>}>
+      <WalletContent />
+    </Suspense>
   );
 }
