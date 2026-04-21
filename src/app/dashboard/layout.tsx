@@ -178,10 +178,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <div className="flex-1 lg:flex-none" />
             
             <div className="flex items-center gap-2">
-              <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-100 text-emerald-800 text-xs font-medium">
-                <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                Live
-              </div>
             </div>
           </div>
         </header>

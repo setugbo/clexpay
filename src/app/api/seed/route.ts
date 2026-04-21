@@ -4,22 +4,21 @@ import bcrypt from 'bcryptjs';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
-  return POST();
+async function hashPassword(password: string): Promise<string> {
+  return bcrypt.hash(password, 12);
 }
 
 export async function POST() {
   try {
-    const passwordHash = await bcrypt.hash('Clexpay@2024', 12);
-    const adminHash = await bcrypt.hash('Admin@123', 12);
-    const userHash = await bcrypt.hash('User@1234', 12);
+    await prisma.transaction.deleteMany({});
+    await prisma.activityLog.deleteMany({});
+    await prisma.wallet.deleteMany({});
+    await prisma.user.deleteMany({ where: { email: { not: 'deleted' } } } });
 
-    const superAdmin = await prisma.user.upsert({
-      where: { email: 'wordpressgee@gmail.com' },
-      update: {},
-      create: {
+    const superAdmin = await prisma.user.create({
+      data: {
         email: 'wordpressgee@gmail.com',
-        passwordHash,
+        passwordHash: await hashPassword('Super@2024'),
         firstName: 'Super',
         lastName: 'Admin',
         role: 'super_admin',
@@ -28,12 +27,10 @@ export async function POST() {
       },
     });
 
-    const admin = await prisma.user.upsert({
-      where: { email: 'admin@clexpay.com' },
-      update: {},
-      create: {
+    const admin = await prisma.user.create({
+      data: {
         email: 'admin@clexpay.com',
-        passwordHash: adminHash,
+        passwordHash: await hashPassword('Admin@123'),
         firstName: 'Clexpay',
         lastName: 'Admin',
         role: 'admin',
@@ -42,13 +39,11 @@ export async function POST() {
       },
     });
 
-    const testUser = await prisma.user.upsert({
-      where: { email: 'test@clexpay.com' },
-      update: {},
-      create: {
-        email: 'test@clexpay.com',
-        passwordHash: userHash,
-        firstName: 'Test',
+    const demoUser = await prisma.user.create({
+      data: {
+        email: 'demo@clexpay.com',
+        passwordHash: await hashPassword('Demo@1234'),
+        firstName: 'Demo',
         lastName: 'User',
         role: 'user',
         status: 'active',
@@ -56,62 +51,21 @@ export async function POST() {
       },
     });
 
-    const allUsers = [superAdmin, admin, testUser];
-
-    for (const user of allUsers) {
-      await prisma.wallet.upsert({
-        where: { userId_currency: { userId: user.id, currency: 'NGN' } },
-        update: {},
-        create: {
-          userId: user.id,
-          currency: 'NGN',
-          balance: 500000,
-          isCrypto: false,
-        },
-      });
-
-      await prisma.wallet.upsert({
-        where: { userId_currency: { userId: user.id, currency: 'BTC' } },
-        update: {},
-        create: {
-          userId: user.id,
-          currency: 'BTC',
-          balance: 0.05,
-          isCrypto: true,
-        },
-      });
-
-      await prisma.wallet.upsert({
-        where: { userId_currency: { userId: user.id, currency: 'ETH' } },
-        update: {},
-        create: {
-          userId: user.id,
-          currency: 'ETH',
-          balance: 0.5,
-          isCrypto: true,
-        },
-      });
-
-      await prisma.wallet.upsert({
-        where: { userId_currency: { userId: user.id, currency: 'USDT' } },
-        update: {},
-        create: {
-          userId: user.id,
-          currency: 'USDT',
-          balance: 1000,
-          isCrypto: true,
-        },
+    for (const user of [superAdmin, admin, demoUser]) {
+      await prisma.wallet.createMany({
+        data: [
+          { userId: user.id, currency: 'NGN', balance: 500000, isCrypto: false },
+          { userId: user.id, currency: 'BTC', balance: 0.05, isCrypto: true },
+          { userId: user.id, currency: 'ETH', balance: 0.5, isCrypto: true },
+          { userId: user.id, currency: 'USDT', balance: 1000, isCrypto: true },
+        ],
       });
     }
 
     await prisma.setting.upsert({
       where: { key: 'system_mode' },
       update: { value: { mode: 'live' } },
-      create: {
-        key: 'system_mode',
-        value: { mode: 'live' },
-        description: 'System operating mode',
-      },
+      create: { key: 'system_mode', value: { mode: 'live' }, description: 'System operating mode' },
     });
 
     await prisma.setting.upsert({
@@ -119,11 +73,7 @@ export async function POST() {
       update: {},
       create: {
         key: 'exchange_rates',
-        value: {
-          BTC_NGN: 50000000,
-          ETH_NGN: 3500000,
-          USDT_NGN: 1500,
-        },
+        value: { BTC_NGN: 50000000, ETH_NGN: 3500000, USDT_NGN: 1500 },
         description: 'Crypto exchange rates',
       },
     });
@@ -133,12 +83,7 @@ export async function POST() {
       update: {},
       create: {
         key: 'fees',
-        value: {
-          cryptoBuy: 0.5,
-          cryptoSell: 0.5,
-          transfer: 0,
-          bill: 100,
-        },
+        value: { cryptoBuy: 0.5, cryptoSell: 0.5, transfer: 0, bill: 100 },
         description: 'Transaction fees',
       },
     });
@@ -147,29 +92,22 @@ export async function POST() {
       success: true,
       message: 'Database seeded successfully',
       users: {
-        superAdmin: superAdmin.email,
-        admin: admin.email,
-        testUser: testUser.email,
-      },
-      credentials: {
-        superAdmin: 'wordpressgee@gmail.com / Clexpay@2024',
+        superAdmin: 'wordpressgee@gmail.com / Super@2024',
         admin: 'admin@clexpay.com / Admin@123',
-        testUser: 'test@clexpay.com / User@1234',
+        demo: 'demo@clexpay.com / Demo@1234',
       },
-      mode: 'live',
-      balances: {
-        NGN: 500000,
-        BTC: 0.05,
-        ETH: 0.5,
-        USDT: 1000,
-      },
+      mode: 'LIVE',
+      balances: { NGN: 500000, BTC: 0.05, ETH: 0.5, USDT: 1000 },
     });
   } catch (error) {
     console.error('Seed error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
-      { success: false, error: errorMessage, details: String(error) },
+      { success: false, error: String(error) },
       { status: 500 }
     );
   }
+}
+
+export async function GET() {
+  return POST();
 }
