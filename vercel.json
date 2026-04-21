@@ -1,7 +1,7 @@
 {
   "framework": "nextjs",
-  "buildCommand": "npm install --legacy-peer-deps && npx prisma generate && next build",
+  "buildCommand": "npm install prisma@5.15.0 @prisma/client@5.15.0 --legacy-peer-deps && npx prisma generate && next build",
   "devCommand": "next dev",
-  "installCommand": "npm install --legacy-peer-deps",
+  "installCommand": "npm install prisma@5.15.0 @prisma/client@5.15.0 --legacy-peer-deps",
   "regions": ["iad1"]
 }
