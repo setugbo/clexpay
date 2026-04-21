@@ -2,9 +2,13 @@
   "name": "clexpay",
   "version": "1.0.0",
   "private": true,
+  "overrides": {
+    "prisma": "5.15.0",
+    "@prisma/client": "5.15.0"
+  },
   "scripts": {
     "dev": "next dev",
-    "build": "npm install --legacy-peer-deps && npm install prisma@5.15.0 @prisma/client@5.15.0 --legacy-peer-deps && npx prisma generate && next build",
+    "build": "npm install --legacy-peer-deps && npx prisma@5.15.0 generate && next build",
     "start": "next start",
     "lint": "next lint",
     "db:generate": "prisma generate",
