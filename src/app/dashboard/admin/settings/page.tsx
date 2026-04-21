@@ -69,7 +69,7 @@ export default function AdminSettingsPage() {
 
   const { data: settings, isLoading } = useQuery({
     queryKey: ['admin-settings'],
-    fn: fetchSettings,
+    queryFn: fetchSettings,
     refetchInterval: 60000,
   });
 
