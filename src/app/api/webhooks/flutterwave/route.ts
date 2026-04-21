@@ -6,10 +6,10 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
   try {
-    const signature = request.headers.get('verif-hash');
+    const signature = request.headers.get('verif-hash') || '';
     const payload = await request.text();
 
-    if (!verifyWebhookSignature(signature || signature, payload)) {
+    if (!verifyWebhookSignature(signature, payload)) {
       return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
     }
 
