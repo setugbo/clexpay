@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ArrowRight, Bitcoin, CreditCard, Zap, Shield, TrendingUp } from 'lucide-react';
+import { ArrowRight, Bitcoin, CreditCard, Zap, Shield, TrendingUp, MapPin, Phone, Mail } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 export default function HomePage() {
@@ -40,14 +40,14 @@ export default function HomePage() {
             <div className="max-w-3xl mx-auto text-center">
               <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-emerald-100 text-emerald-700 text-sm font-medium mb-6">
                 <Zap className="h-4 w-4" />
-                Demo Mode Available
+                Trusted by Thousands Across Nigeria
               </div>
               <h1 className="text-4xl md:text-6xl font-bold text-slate-900 mb-6 leading-tight">
-                The Future of <span className="text-emerald-600">Fintech</span> is Here
+                Buy, Sell & Trade <span className="text-emerald-600">Crypto</span> Instantly
               </h1>
               <p className="text-lg md:text-xl text-slate-600 mb-8 max-w-2xl mx-auto">
-                Trade crypto, pay bills, and send gift cards - all in one powerful platform. 
-                Built for Africa, designed for everyone.
+                Nigeria&apos;s most reliable platform for crypto trading, bill payments, and gift cards. 
+                Fast transactions, competitive rates, and 24/7 support.
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
                 <Link href="/auth/register">
@@ -58,7 +58,7 @@ export default function HomePage() {
                 </Link>
                 <Link href="/auth/login">
                   <Button variant="outline" size="xl" className="w-full sm:w-auto">
-                    Try Demo
+                    Sign In
                   </Button>
                 </Link>
               </div>
@@ -94,7 +94,7 @@ export default function HomePage() {
                   <TrendingUp className="h-6 w-6 text-white" />
                 </div>
                 <h3 className="text-xl font-semibold text-slate-900 mb-2">Gift Cards</h3>
-                <p className="text-slate-600">Buy and sell gift cards from top brands worldwide at competitive rates.</p>
+                <p className="text-slate-600">Buy gift cards from top brands worldwide at competitive rates.</p>
               </div>
             </div>
           </div>
@@ -129,8 +129,8 @@ export default function HomePage() {
               <div className="relative">
                 <div className="aspect-square rounded-3xl bg-gradient-to-br from-emerald-500 to-emerald-700 p-8 flex items-center justify-center">
                   <div className="text-white text-center">
-                    <div className="text-6xl font-bold mb-2">$0</div>
-                    <div className="text-emerald-100">Transaction Fees (Demo)</div>
+                    <div className="text-6xl font-bold mb-2">24/7</div>
+                    <div className="text-emerald-100">Customer Support</div>
                   </div>
                 </div>
               </div>
@@ -156,18 +156,47 @@ export default function HomePage() {
 
       <footer className="py-12 bg-slate-900 text-slate-400">
         <div className="container mx-auto px-4">
-          <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-            <div className="flex items-center gap-2">
-              <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center">
-                <span className="text-white font-bold text-sm">CX</span>
+          <div className="grid md:grid-cols-3 gap-8 mb-8">
+            <div>
+              <div className="flex items-center gap-2 mb-4">
+                <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center">
+                  <span className="text-white font-bold text-sm">CX</span>
+                </div>
+                <span className="font-bold text-xl text-white">Clexpay</span>
               </div>
-              <span className="font-bold text-xl text-white">Clexpay</span>
+              <p className="text-sm text-slate-400">Your trusted partner for crypto trading and bill payments in Nigeria.</p>
             </div>
-            <p className="text-sm">© 2024 Clexpay. All rights reserved.</p>
+            <div>
+              <h4 className="font-semibold text-white mb-4">Contact Us</h4>
+              <div className="space-y-2 text-sm">
+                <div className="flex items-center gap-2">
+                  <MapPin className="h-4 w-4" />
+                  <span>AAAA Excel Plaza, Okpanam Road, Off Jowin Academy by Kindgdom Hall, Asaba Delta State</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Phone className="h-4 w-4" />
+                  <span>+2349069015623</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Mail className="h-4 w-4" />
+                  <span>hello@clexpay.com</span>
+                </div>
+              </div>
+            </div>
+            <div>
+              <h4 className="font-semibold text-white mb-4">Quick Links</h4>
+              <div className="space-y-2 text-sm">
+                <Link href="/auth/login" className="block hover:text-white">Sign In</Link>
+                <Link href="/auth/register" className="block hover:text-white">Create Account</Link>
+                <Link href="/dashboard" className="block hover:text-white">Dashboard</Link>
+              </div>
+            </div>
+          </div>
+          <div className="border-t border-slate-800 pt-8 text-center">
+            <p className="text-sm">© 2024 Clexpay. All rights reserved. RC: 1234567</p>
           </div>
         </div>
       </footer>
     </div>
   );
 }
-
