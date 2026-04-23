@@ -38,14 +38,19 @@ export async function setSystemMode(mode: 'live'): Promise<void> {
   });
 }
 
-export async function getExchangeRates(): Promise<Record<string, number>> {
+export async function getExchangeRates(): Promise<{ BTC_NGN: number; ETH_NGN: number; USDT_NGN: number }> {
   try {
     const setting = await prisma.setting.findUnique({
       where: { key: 'exchange_rates' },
     });
 
     if (setting && typeof setting.value === 'object' && setting.value !== null) {
-      return setting.value as Record<string, number>;
+      const rates = setting.value as Record<string, number>;
+      return {
+        BTC_NGN: rates.BTC_NGN || 50000000,
+        ETH_NGN: rates.ETH_NGN || 3500000,
+        USDT_NGN: rates.USDT_NGN || 1500,
+      };
     }
 
     return {
