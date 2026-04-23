@@ -94,7 +94,7 @@ export async function PUT(request: NextRequest) {
     });
 
     const currentFees = (feesSetting?.value as FeeConfig | null) || DEFAULT_FEES;
-    const newFees: FeeConfig = { ...currentFees, ...fees };
+    const newFees = { ...currentFees, ...fees } as FeeConfig;
 
     await prisma.setting.upsert({
       where: { key: 'fees' },
