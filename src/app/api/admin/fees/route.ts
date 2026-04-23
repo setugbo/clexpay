@@ -6,6 +6,7 @@ import prisma from '@/lib/prisma';
 export const dynamic = 'force-dynamic';
 
 interface FeeConfig {
+  [key: string]: number;
   cryptoBuy: number;
   cryptoSell: number;
   transfer: number;
@@ -29,7 +30,7 @@ const DEFAULT_FEES: FeeConfig = {
   maxWithdrawal: 5000000,
   minFunding: 100,
   maxFunding: 10000000,
-};
+} as FeeConfig;
 
 export async function GET(request: NextRequest) {
   try {
