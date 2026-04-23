@@ -6,17 +6,16 @@ export interface TransactionMonitor {
   id: string;
   userId: string;
   type: string;
-  subtype?: string;
-  currency: string;
-  amount: number;
-  fee: number;
+  subtype?: string | null;
+  currency: string | null;
+  amount: unknown;
+  fee: unknown;
   status: TransactionStatus;
   reference: string;
-  provider?: string;
+  description?: string | null;
+  metadata?: unknown;
   createdAt: Date;
   updatedAt: Date;
-  failureReason?: string;
-  retryCount: number;
 }
 
 export interface MonitoringAlert {
@@ -40,7 +39,7 @@ export async function getStuckTransactions(): Promise<TransactionMonitor[]> {
     orderBy: { createdAt: 'asc' },
   });
   
-  return transactions as TransactionMonitor[];
+  return transactions as unknown as TransactionMonitor[];
 }
 
 export async function getRecentFailures(hours = 24): Promise<TransactionMonitor[]> {
@@ -54,7 +53,7 @@ export async function getRecentFailures(hours = 24): Promise<TransactionMonitor[
     orderBy: { updatedAt: 'desc' },
   });
   
-  return transactions as TransactionMonitor[];
+  return transactions as unknown as TransactionMonitor[];
 }
 
 export async function getTransactionStats(timeRange: 'hour' | 'day' | 'week' | 'month' = 'day') {
@@ -108,13 +107,13 @@ export async function getTransactionStats(timeRange: 'hour' | 'day' | 'week' | '
   return {
     summary: {
       totalTransactions: totals._count || 0,
-      totalVolume: totals._sum?.amount || 0,
-      totalFees: totals._sum?.fee || 0,
+      totalVolume: Number(totals._sum?.amount) || 0,
+      totalFees: Number(totals._sum?.fee) || 0,
     },
     byType: byType.map(t => ({
       type: t.type,
       count: t._count,
-      volume: t._sum?.amount || 0,
+      volume: Number(t._sum?.amount) || 0,
     })),
     byStatus: byStatus.map(s => ({
       status: s.status,
