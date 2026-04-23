@@ -104,7 +104,7 @@ export async function POST(request: NextRequest) {
       _sum: { amount: true },
     });
 
-    const dailyTotal = (dailyWithdrawals._sum?.amount || 0) + amount;
+    const dailyTotal = Number(dailyWithdrawals._sum?.amount || 0) + amount;
     if (dailyTotal > MAX_DAILY_WITHDRAWAL) {
       return NextResponse.json(
         { success: false, error: `Daily withdrawal limit of NGN ${MAX_DAILY_WITHDRAWAL.toLocaleString()} exceeded` },
