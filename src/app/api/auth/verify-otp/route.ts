@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    await sendWelcomeEmail(user.email, user.firstName);
+    await sendWelcomeEmail(user.email, user.firstName || 'User');
 
     await prisma.activityLog.create({
       data: {
