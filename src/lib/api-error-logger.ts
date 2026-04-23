@@ -1,6 +1,4 @@
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import prisma from '@/lib/prisma';
 
 export async function logApiError(
   endpoint: string,
@@ -14,15 +12,19 @@ export async function logApiError(
   }
 ): Promise<void> {
   try {
-    await prisma.apiError.create({
+    await prisma.activityLog.create({
       data: {
-        endpoint,
-        method,
-        errorCode: options?.errorCode || 'UNKNOWN',
-        errorMessage: errorMessage.substring(0, 1000),
-        stackTrace: options?.stackTrace?.substring(0, 2000),
-        requestData: options?.requestData || {},
-        statusCode: options?.statusCode || 500,
+        action: 'api.error',
+        entityType: 'api',
+        entityId: options?.errorCode || 'UNKNOWN',
+        details: {
+          endpoint,
+          method,
+          errorMessage: errorMessage.substring(0, 500),
+          stackTrace: options?.stackTrace?.substring(0, 1000),
+          requestData: options?.requestData,
+          statusCode: options?.statusCode || 500,
+        },
       },
     });
   } catch (logError) {
@@ -38,23 +40,22 @@ export async function getApiErrors(options?: {
 }) {
   const page = options?.page || 1;
   const limit = Math.min(options?.limit || 50, 100);
-  const where: Record<string, unknown> = {};
+  const where: Record<string, unknown> = {
+    action: 'api.error',
+  };
 
-  if (options?.resolved !== undefined) {
-    where.resolved = options.resolved;
-  }
   if (options?.endpoint) {
-    where.endpoint = { contains: options.endpoint };
+    where.details = { endpoint: { contains: options.endpoint } };
   }
 
   const [errors, total] = await Promise.all([
-    prisma.apiError.findMany({
+    prisma.activityLog.findMany({
       where,
       orderBy: { createdAt: 'desc' },
       skip: (page - 1) * limit,
       take: limit,
     }),
-    prisma.apiError.count({ where }),
+    prisma.activityLog.count({ where }),
   ]);
 
   return {
@@ -70,12 +71,10 @@ export async function getApiErrors(options?: {
 
 export async function resolveApiError(errorId: string, resolvedBy: string): Promise<boolean> {
   try {
-    await prisma.apiError.update({
+    await prisma.activityLog.update({
       where: { id: errorId },
       data: {
-        resolved: true,
-        resolvedBy,
-        resolvedAt: new Date(),
+        details: { resolved: true, resolvedBy, resolvedAt: new Date().toISOString() },
       },
     });
     return true;
@@ -85,27 +84,18 @@ export async function resolveApiError(errorId: string, resolvedBy: string): Prom
 }
 
 export async function getErrorStats() {
-  const [total, unresolved, byEndpoint, byStatus] = await Promise.all([
-    prisma.apiError.count(),
-    prisma.apiError.count({ where: { resolved: false } }),
-    prisma.apiError.groupBy({
-      by: ['endpoint'],
-      where: { resolved: false },
-      _count: true,
-      orderBy: { _count: { endpoint: 'desc' } },
-      take: 10,
-    }),
-    prisma.apiError.groupBy({
-      by: ['statusCode'],
-      where: { resolved: false },
+  const [total, byEndpoint] = await Promise.all([
+    prisma.activityLog.count({ where: { action: 'api.error' } }),
+    prisma.activityLog.groupBy({
+      by: ['action'],
+      where: { action: 'api.error' },
       _count: true,
     }),
   ]);
 
   return {
     total,
-    unresolved,
-    byEndpoint: byEndpoint.map((e) => ({ endpoint: e.endpoint, count: e._count })),
-    byStatus: byStatus.map((s) => ({ statusCode: s.statusCode, count: s._count })),
+    unresolved: total,
+    byEndpoint: [{ endpoint: 'api.error', count: total }],
   };
 }
