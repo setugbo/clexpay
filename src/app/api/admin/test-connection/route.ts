@@ -229,20 +229,27 @@ export async function POST(request: NextRequest) {
     const allSuccess = Object.values(results).every((r) => r.success);
     const criticalFailed = ['database', 'neon', 'flutterwave'].some((k) => results[k]?.success === false);
 
+    const summary = Object.entries(results).map(([key, result]) => ({
+      service: key,
+      success: result.success,
+      latency: result.latency,
+      message: result.message,
+    }));
+
     await prisma.activityLog.create({
       data: {
         userId: (session.user as { id?: string }).id || '',
         action: 'admin.connection_test',
         entityType: 'system',
         entityId: 'test-connection',
-        details: { results, endpoint: endpoint || 'all' },
+        details: { summary, endpoint: endpoint || 'all', allSuccess, criticalFailed },
       },
     });
 
     return NextResponse.json({
       success: allSuccess,
       status: criticalFailed ? 'critical_issues' : allSuccess ? 'healthy' : 'degraded',
-      data: results,
+      data: summary,
       message: allSuccess
         ? 'All connections verified'
         : criticalFailed
