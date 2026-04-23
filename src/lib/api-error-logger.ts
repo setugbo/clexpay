@@ -21,10 +21,8 @@ export async function logApiError(
           endpoint,
           method,
           errorMessage: errorMessage.substring(0, 500),
-          stackTrace: options?.stackTrace?.substring(0, 1000),
-          requestData: options?.requestData,
           statusCode: options?.statusCode || 500,
-        },
+        } as object,
       },
     });
   } catch (logError) {
@@ -74,7 +72,7 @@ export async function resolveApiError(errorId: string, resolvedBy: string): Prom
     await prisma.activityLog.update({
       where: { id: errorId },
       data: {
-        details: { resolved: true, resolvedBy, resolvedAt: new Date().toISOString() },
+        details: { resolved: true, resolvedBy, resolvedAt: new Date().toISOString() } as object,
       },
     });
     return true;
@@ -84,14 +82,7 @@ export async function resolveApiError(errorId: string, resolvedBy: string): Prom
 }
 
 export async function getErrorStats() {
-  const [total, byEndpoint] = await Promise.all([
-    prisma.activityLog.count({ where: { action: 'api.error' } }),
-    prisma.activityLog.groupBy({
-      by: ['action'],
-      where: { action: 'api.error' },
-      _count: true,
-    }),
-  ]);
+  const total = await prisma.activityLog.count({ where: { action: 'api.error' } });
 
   return {
     total,
