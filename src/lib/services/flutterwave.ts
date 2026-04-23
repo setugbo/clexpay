@@ -1,8 +1,7 @@
 import crypto from 'crypto';
 
 const FLUTTERWAVE_BASE_URL = process.env.FLUTTERWAVE_BASE_URL || 'https://api.flutterwave.com/v3';
-const FLUTTERWAVE_CLIENT_ID = process.env.FLUTTERWAVE_CLIENT_ID;
-const FLUTTERWAVE_CLIENT_SECRET = process.env.FLUTTERWAVE_CLIENT_SECRET;
+const FLUTTERWAVE_SECRET_KEY = process.env.FLUTTERWAVE_SECRET_KEY;
 const FLUTTERWAVE_ENCRYPTION_KEY = process.env.FLUTTERWAVE_ENCRYPTION_KEY;
 const FLUTTERWAVE_SECRET_HASH = process.env.FLUTTERWAVE_SECRET_HASH;
 
@@ -22,25 +21,13 @@ interface FlutterwaveToken {
   expiresAt: number;
 }
 
-interface ApiError {
-  code: string;
-  message: string;
-  status: number;
-}
-
 let cachedToken: FlutterwaveToken | null = null;
 let cachedBanks: Bank[] | null = null;
 let banksCacheTime = 0;
 const BANKS_CACHE_DURATION = 60 * 60 * 1000;
 
-function handleApiError(response: Response, context: string): never {
-  const error: ApiError = {
-    code: `FLUTTERWAVE_${response.status}`,
-    message: `Flutterwave API error in ${context}: ${response.statusText}`,
-    status: response.status,
-  };
-  console.error(`[FLUTTERWAVE] ${context} failed:`, error);
-  throw new Error(error.message);
+export function isFlutterwaveConfigured(): boolean {
+  return !!FLUTTERWAVE_SECRET_KEY;
 }
 
 async function getAuthToken(): Promise<string> {
@@ -48,10 +35,8 @@ async function getAuthToken(): Promise<string> {
     return cachedToken.token;
   }
 
-  if (!FLUTTERWAVE_CLIENT_ID || !FLUTTERWAVE_CLIENT_SECRET) {
-    const error = 'Flutterwave credentials not configured';
-    console.error('[FLUTTERWAVE] ' + error);
-    throw new Error(error);
+  if (!FLUTTERWAVE_SECRET_KEY) {
+    throw new Error('Flutterwave secret key not configured');
   }
 
   try {
@@ -61,13 +46,13 @@ async function getAuthToken(): Promise<string> {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        client_id: FLUTTERWAVE_CLIENT_ID,
-        client_secret: FLUTTERWAVE_CLIENT_SECRET,
+        client_id: FLUTTERWAVE_SECRET_KEY,
+        client_secret: FLUTTERWAVE_SECRET_KEY,
       }),
     });
 
     if (!response.ok) {
-      handleApiError(response, 'getAuthToken');
+      throw new Error(`Failed to get Flutterwave token: ${response.statusText}`);
     }
 
     const data = await response.json();
@@ -81,12 +66,8 @@ async function getAuthToken(): Promise<string> {
       expiresAt: Date.now() + (60 * 60 * 1000),
     };
 
-    console.log('[FLUTTERWAVE] Token refreshed successfully');
     return cachedToken.token;
   } catch (error) {
-    if (error instanceof Error && error.message.includes('Flutterwave')) {
-      throw error;
-    }
     console.error('[FLUTTERWAVE] Token fetch error:', error);
     throw new Error('Failed to authenticate with Flutterwave');
   }
@@ -98,17 +79,20 @@ export async function createPaymentLink(
   amount: number,
   reference: string
 ): Promise<{ paymentUrl: string | null; reference: string; error?: string }> {
+  if (!FLUTTERWAVE_SECRET_KEY) {
+    return { paymentUrl: null, reference, error: 'Flutterwave not configured' };
+  }
+
   try {
-    const token = await getAuthToken();
     const redirectUrl = `${process.env.NEXTAUTH_URL || 'https://clexpay.vercel.app'}/dashboard/wallet?funded=true`;
 
-    console.log('[FLUTTERWAVE] Creating payment link:', { userId, amount, reference, redirectUrl });
+    console.log('[FLUTTERWAVE] Creating payment link:', { userId, amount, reference });
 
     const response = await fetch(`${FLUTTERWAVE_BASE_URL}/v3/payments/pay`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
+        Authorization: `Bearer ${FLUTTERWAVE_SECRET_KEY}`,
       },
       body: JSON.stringify({
         tx_ref: reference,
@@ -128,34 +112,19 @@ export async function createPaymentLink(
 
     if (!response.ok) {
       console.error('[FLUTTERWAVE] Payment link creation failed:', data);
-      return {
-        paymentUrl: null,
-        reference,
-        error: data.message || 'Failed to create payment link',
-      };
+      return { paymentUrl: null, reference, error: data.message || 'Failed to create payment link' };
     }
 
     if (data.status !== 'success' || !data.data?.link) {
       console.error('[FLUTTERWAVE] Payment link API returned error:', data);
-      return {
-        paymentUrl: null,
-        reference,
-        error: data.message || 'Failed to create payment link',
-      };
+      return { paymentUrl: null, reference, error: data.message || 'Failed to create payment link' };
     }
 
     console.log('[FLUTTERWAVE] Payment link created:', data.data.link);
-    return {
-      paymentUrl: data.data.link,
-      reference,
-    };
+    return { paymentUrl: data.data.link, reference };
   } catch (error) {
     console.error('[FLUTTERWAVE] createPaymentLink error:', error);
-    return {
-      paymentUrl: null,
-      reference,
-      error: error instanceof Error ? error.message : 'Failed to create payment link',
-    };
+    return { paymentUrl: null, reference, error: error instanceof Error ? error.message : 'Failed to create payment link' };
   }
 }
 
@@ -165,9 +134,11 @@ export async function verifyPayment(reference: string): Promise<{
   status: string;
   message?: string;
 }> {
-  try {
-    const token = await getAuthToken();
+  if (!FLUTTERWAVE_SECRET_KEY) {
+    return { success: false, amount: 0, status: 'error', message: 'Flutterwave not configured' };
+  }
 
+  try {
     console.log('[FLUTTERWAVE] Verifying payment:', reference);
 
     const response = await fetch(
@@ -176,7 +147,7 @@ export async function verifyPayment(reference: string): Promise<{
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
+          Authorization: `Bearer ${FLUTTERWAVE_SECRET_KEY}`,
         },
       }
     );
@@ -190,14 +161,9 @@ export async function verifyPayment(reference: string): Promise<{
 
     if (data.status === 'successful') {
       console.log('[FLUTTERWAVE] Payment verified:', reference, data.data.amount);
-      return {
-        success: true,
-        amount: parseFloat(data.data.amount),
-        status: 'successful',
-      };
+      return { success: true, amount: parseFloat(data.data.amount), status: 'successful' };
     }
 
-    console.log('[FLUTTERWAVE] Payment not successful:', reference, data.status);
     return {
       success: false,
       amount: parseFloat(data.data?.amount || '0'),
@@ -216,16 +182,18 @@ export async function createBankTransfer(
   amount: number,
   reference: string
 ): Promise<{ success: boolean; message: string; transferId?: string }> {
-  try {
-    const token = await getAuthToken();
+  if (!FLUTTERWAVE_SECRET_KEY) {
+    return { success: false, message: 'Flutterwave not configured' };
+  }
 
+  try {
     console.log('[FLUTTERWAVE] Creating bank transfer:', { bankCode, accountNumber, amount, reference });
 
     const response = await fetch(`${FLUTTERWAVE_BASE_URL}/v3/transfers`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
+        Authorization: `Bearer ${FLUTTERWAVE_SECRET_KEY}`,
       },
       body: JSON.stringify({
         account_bank: bankCode,
@@ -241,32 +209,18 @@ export async function createBankTransfer(
 
     if (!response.ok) {
       console.error('[FLUTTERWAVE] Bank transfer failed:', data);
-      return {
-        success: false,
-        message: data.message || data.error || 'Failed to initiate transfer',
-      };
+      return { success: false, message: data.message || data.error || 'Failed to initiate transfer' };
     }
 
     if (data.status === 'success') {
       console.log('[FLUTTERWAVE] Bank transfer initiated:', data.data?.id);
-      return {
-        success: true,
-        message: 'Transfer initiated successfully',
-        transferId: data.data?.id,
-      };
+      return { success: true, message: 'Transfer initiated successfully', transferId: data.data?.id };
     }
 
-    console.log('[FLUTTERWAVE] Bank transfer API error:', data);
-    return {
-      success: false,
-      message: data.message || data.error || 'Transfer failed',
-    };
+    return { success: false, message: data.message || data.error || 'Transfer failed' };
   } catch (error) {
     console.error('[FLUTTERWAVE] createBankTransfer error:', error);
-    return {
-      success: false,
-      message: error instanceof Error ? error.message : 'Failed to initiate transfer',
-    };
+    return { success: false, message: error instanceof Error ? error.message : 'Failed to initiate transfer' };
   }
 }
 
@@ -275,33 +229,24 @@ export async function getBanks(): Promise<{ banks: Bank[]; error?: string }> {
     return { banks: cachedBanks };
   }
 
-  if (!FLUTTERWAVE_CLIENT_ID) {
-    console.warn('[FLUTTERWAVE] API key not configured, returning fallback banks');
-    return {
-      banks: FALLBACK_BANKS,
-      error: 'Flutterwave API key not configured - using cached list',
-    };
+  if (!FLUTTERWAVE_SECRET_KEY) {
+    return { banks: FALLBACK_BANKS, error: 'Flutterwave API key not configured - using cached list' };
   }
 
   try {
-    const token = await getAuthToken();
-
     console.log('[FLUTTERWAVE] Fetching banks from API');
 
     const response = await fetch(`${FLUTTERWAVE_BASE_URL}/v3/banks/NG`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
+        Authorization: `Bearer ${FLUTTERWAVE_SECRET_KEY}`,
       },
     });
 
     if (!response.ok) {
       console.error('[FLUTTERWAVE] Get banks failed:', response.status);
-      return {
-        banks: cachedBanks || FALLBACK_BANKS,
-        error: `Failed to fetch banks: ${response.statusText}`,
-      };
+      return { banks: cachedBanks || FALLBACK_BANKS, error: `Failed to fetch banks: ${response.statusText}` };
     }
 
     const data = await response.json();
@@ -314,32 +259,20 @@ export async function getBanks(): Promise<{ banks: Bank[]; error?: string }> {
       return { banks: filteredBanks };
     }
 
-    return {
-      banks: cachedBanks || FALLBACK_BANKS,
-      error: 'Invalid response from banks API',
-    };
+    return { banks: cachedBanks || FALLBACK_BANKS, error: 'Invalid response from banks API' };
   } catch (error) {
     console.error('[FLUTTERWAVE] getBanks error:', error);
-    return {
-      banks: cachedBanks || FALLBACK_BANKS,
-      error: error instanceof Error ? error.message : 'Failed to fetch banks',
-    };
+    return { banks: cachedBanks || FALLBACK_BANKS, error: error instanceof Error ? error.message : 'Failed to fetch banks' };
   }
 }
 
-export function verifyWebhookSignature(
-  signature: string,
-  payload: string
-): boolean {
+export function verifyWebhookSignature(signature: string, payload: string): boolean {
   if (!FLUTTERWAVE_SECRET_HASH) {
     console.warn('[FLUTTERWAVE] Webhook verification disabled - FLUTTERWAVE_SECRET_HASH not set');
     return true;
   }
   
-  const hash = crypto
-    .createHash('sha256')
-    .update(payload + FLUTTERWAVE_SECRET_HASH)
-    .digest('hex');
+  const hash = crypto.createHash('sha256').update(payload + FLUTTERWAVE_SECRET_HASH).digest('hex');
   
   const isValid = hash === signature;
   
@@ -348,6 +281,47 @@ export function verifyWebhookSignature(
   }
   
   return isValid;
+}
+
+export async function payBill(
+  serviceId: string,
+  customerId: string,
+  amount: string,
+  reference: string
+): Promise<{ success: boolean; message: string; data?: unknown }> {
+  if (!FLUTTERWAVE_SECRET_KEY) {
+    return { success: false, message: 'Flutterwave not configured' };
+  }
+
+  try {
+    const token = await getAuthToken();
+
+    const response = await fetch(`${FLUTTERWAVE_BASE_URL}/v3/bills`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        country: 'NG',
+        customer: customerId,
+        amount: amount,
+        type: serviceId,
+        reference: reference,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (data.status === 'success') {
+      return { success: true, message: 'Bill payment successful', data: data.data };
+    }
+
+    return { success: false, message: data.message || 'Bill payment failed' };
+  } catch (error) {
+    console.error('[FLUTTERWAVE] payBill error:', error);
+    return { success: false, message: error instanceof Error ? error.message : 'Bill payment failed' };
+  }
 }
 
 export { getAuthToken };
@@ -361,16 +335,16 @@ const FALLBACK_BANKS: Bank[] = [
   { id: '6', code: '032', name: 'Union Bank of Nigeria', longcode: '032', active: true, country: 'NG', currency: 'NGN', type: 'bank' },
   { id: '7', code: '039', name: 'Stanbic IBTC Bank', longcode: '039', active: true, country: 'NG', currency: 'NGN', type: 'bank' },
   { id: '8', code: '050', name: 'Ecobank Nigeria', longcode: '050', active: true, country: 'NG', currency: 'NGN', type: 'bank' },
-  { id: '9', code: '070', name: 'Nigerian First Bank', longcode: '070', active: true, country: 'NG', currency: 'NGN', type: 'bank' },
+  { id: '9', code: '057', name: 'Zenith Bank', longcode: '057', active: true, country: 'NG', currency: 'NGN', type: 'bank' },
   { id: '10', code: '076', name: 'Polaris Bank', longcode: '076', active: true, country: 'NG', currency: 'NGN', type: 'bank' },
   { id: '11', code: '214', name: 'First City Monument Bank', longcode: '214', active: true, country: 'NG', currency: 'NGN', type: 'bank' },
-  { id: '12', code: '084', name: 'Nigerian Enterprise Bank', longcode: '084', active: true, country: 'NG', currency: 'NGN', type: 'bank' },
-  { id: '13', code: '063', name: 'Bank of Agriculture', longcode: '063', active: true, country: 'NG', currency: 'NGN', type: 'bank' },
-  { id: '14', code: '101', name: 'Unity Bank', longcode: '101', active: true, country: 'NG', currency: 'NGN', type: 'bank' },
-  { id: '15', code: '023', name: 'Citi Bank Nigeria', longcode: '023', active: true, country: 'NG', currency: 'NGN', type: 'bank' },
-  { id: '16', code: '035', name: 'Nigerian British Bank', longcode: '035', active: true, country: 'NG', currency: 'NGN', type: 'bank' },
-  { id: '17', code: '057', name: 'Zenith Bank', longcode: '057', active: true, country: 'NG', currency: 'NGN', type: 'bank' },
-  { id: '18', code: '075', name: 'Nigerian Commercial Bank', longcode: '075', active: true, country: 'NG', currency: 'NGN', type: 'bank' },
-  { id: '19', code: '082', name: 'Nigerian Trust Bank', longcode: '082', active: true, country: 'NG', currency: 'NGN', type: 'bank' },
-  { id: '20', code: '000', name: 'Opay', longcode: '000', active: true, country: 'NG', currency: 'NGN', type: 'bank' },
+  { id: '12', code: '023', name: 'Citi Bank Nigeria', longcode: '023', active: true, country: 'NG', currency: 'NGN', type: 'bank' },
+  { id: '13', code: '000', name: 'Opay', longcode: '000', active: true, country: 'NG', currency: 'NGN', type: 'bank' },
+  { id: '14', code: '035', name: 'Nigerian British Bank', longcode: '035', active: true, country: 'NG', currency: 'NGN', type: 'bank' },
+  { id: '15', code: '082', name: 'Nigerian Trust Bank', longcode: '082', active: true, country: 'NG', currency: 'NGN', type: 'bank' },
+  { id: '16', code: '101', name: 'Unity Bank', longcode: '101', active: true, country: 'NG', currency: 'NGN', type: 'bank' },
+  { id: '17', code: '063', name: 'Bank of Agriculture', longcode: '063', active: true, country: 'NG', currency: 'NGN', type: 'bank' },
+  { id: '18', code: '084', name: 'Nigerian Enterprise Bank', longcode: '084', active: true, country: 'NG', currency: 'NGN', type: 'bank' },
+  { id: '19', code: '070', name: 'Nigerian First Bank', longcode: '070', active: true, country: 'NG', currency: 'NGN', type: 'bank' },
+  { id: '20', code: '075', name: 'Nigerian Commercial Bank', longcode: '075', active: true, country: 'NG', currency: 'NGN', type: 'bank' },
 ];

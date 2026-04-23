@@ -1,15 +1,18 @@
 import { ExchangeRates, Transaction } from '@/types';
 import { generateReference } from '@/lib/utils';
-import { getFees, getExchangeRates as getStoredRates } from '../../factory';
+import { getExchangeRates } from '../../factory';
 
 const TATUM_BASE_URL = process.env.TATUM_BASE_URL || 'https://api.tatum.io/v3';
 const TATUM_API_KEY = process.env.TATUM_API_KEY;
 
+const USD_TO_NGN = 1550;
+
 interface TatumRates {
-  bitcoin: { USD: number };
-  ethereum: { USD: number };
-  tether: { USD: number };
   [key: string]: { USD: number };
+}
+
+export function isTatumConfigured(): boolean {
+  return !!TATUM_API_KEY;
 }
 
 async function tatumRequest(endpoint: string): Promise<unknown> {
@@ -41,221 +44,147 @@ export class TatumCryptoService {
   async getRates(): Promise<ExchangeRates> {
     try {
       const rates = await getTatumRates();
-      const usdToNgn = 1;
+      const usdToNgn = USD_TO_NGN;
 
       return {
-        BTC_NGN: rates.bitcoin?.USD || 50000000,
-        ETH_NGN: rates.ethereum?.USD || 3500000,
-        USDT_NGN: rates.tether?.USD || 1500,
+        BTC_NGN: (rates.bitcoin?.USD || 50000) * usdToNgn,
+        ETH_NGN: (rates.ethereum?.USD || 3000) * usdToNgn,
+        USDT_NGN: (rates.tether?.USD || 1) * usdToNgn,
       };
-    } catch {
-      const storedRates = await getStoredRates();
-      return storedRates as unknown as ExchangeRates;
+    } catch (error) {
+      console.error('[TATUM] Failed to get rates from API:', error);
+      return await getExchangeRates();
     }
+  }
+
+  async getSupportedCrypto(): Promise<string[]> {
+    return ['BTC', 'ETH', 'USDT'];
   }
 
   async buyCrypto(userId: string, fromCurrency: string, toCurrency: string, amount: number): Promise<Transaction> {
     const rates = await this.getRates();
-    const fees = await getFees();
-    const rate = rates[`${toCurrency}_${fromCurrency}` as keyof ExchangeRates];
+    const rateKey = `${toCurrency}_${fromCurrency}`;
+    const rate = rates[rateKey as keyof ExchangeRates];
 
-    if (!rate) throw new Error('Invalid currency pair');
-
-    const wallet = await prisma.wallet.findUnique({
-      where: { userId_currency: { userId, currency: fromCurrency } },
-    });
-    if (!wallet) throw new Error(`${fromCurrency} wallet not found`);
-
-    const balance = Number(wallet.balance);
-    if (balance < amount) throw new Error(`Insufficient ${fromCurrency} balance`);
-    if (amount <= 0) throw new Error('Amount must be positive');
-
-    const cryptoAmount = amount / rate;
-    const fee = (amount * (fees.cryptoBuy || 0.5)) / 100;
-    const totalCost = amount + fee;
-
-    let toWallet = await prisma.wallet.findUnique({
-      where: { userId_currency: { userId, currency: toCurrency } },
-    });
-    if (!toWallet) {
-      toWallet = await prisma.wallet.create({
-        data: { userId, currency: toCurrency, isCrypto: true, balance: 0 },
-      });
+    if (!rate) {
+      throw new Error(`Exchange rate not available for ${toCurrency}_${fromCurrency}`);
     }
 
-    const reference = generateReference();
+    const cryptoAmount = amount / rate;
+    const fee = (amount * 0.5) / 100;
+    const totalCost = amount + fee;
 
-    const transaction = await prisma.$transaction(async (tx) => {
-      await tx.wallet.update({
-        where: { id: wallet.id },
-        data: { balance: { decrement: totalCost } },
-      });
+    console.log('[TATUM] Buy crypto:', { userId, fromCurrency, toCurrency, amount, cryptoAmount, rate });
 
-      await tx.wallet.update({
-        where: { id: toWallet!.id },
-        data: { balance: { increment: cryptoAmount } },
-      });
-
-      return tx.transaction.create({
-        data: {
-          userId,
-          type: 'trade',
-          subtype: 'buy',
-          currency: toCurrency,
-          amount: cryptoAmount,
-          fee,
-          status: 'success',
-          reference,
-          description: `Buy ${cryptoAmount.toFixed(8)} ${toCurrency} with ${fromCurrency}`,
-          metadata: {
-            fromCurrency,
-            toCurrency,
-            fromAmount: totalCost,
-            rate,
-            provider: 'tatum',
-          },
-        },
-      });
-    });
-
-    return transaction as unknown as Transaction;
+    return await this.executeTrade(userId, fromCurrency, toCurrency, amount, cryptoAmount, fee, 'buy');
   }
 
   async sellCrypto(userId: string, fromCurrency: string, toCurrency: string, amount: number): Promise<Transaction> {
     const rates = await this.getRates();
-    const fees = await getFees();
-    const rate = rates[`${fromCurrency}_${toCurrency}` as keyof ExchangeRates];
+    const rateKey = `${fromCurrency}_${toCurrency}`;
+    const rate = rates[rateKey as keyof ExchangeRates];
 
-    if (!rate) throw new Error('Invalid currency pair');
-
-    const wallet = await prisma.wallet.findUnique({
-      where: { userId_currency: { userId, currency: fromCurrency } },
-    });
-    if (!wallet) throw new Error(`${fromCurrency} wallet not found`);
-
-    const balance = Number(wallet.balance);
-    if (balance < amount) throw new Error(`Insufficient ${fromCurrency} balance`);
-    if (amount <= 0) throw new Error('Amount must be positive');
-
-    const fiatAmount = amount * rate;
-    const fee = (fiatAmount * (fees.cryptoSell || 0.5)) / 100;
-    const netAmount = fiatAmount - fee;
-
-    let toWallet = await prisma.wallet.findUnique({
-      where: { userId_currency: { userId, currency: toCurrency } },
-    });
-    if (!toWallet) {
-      toWallet = await prisma.wallet.create({
-        data: { userId, currency: toCurrency, isCrypto: false, balance: 0 },
-      });
+    if (!rate) {
+      throw new Error(`Exchange rate not available for ${fromCurrency}_${toCurrency}`);
     }
 
-    const reference = generateReference();
+    const fiatAmount = amount * rate;
+    const fee = (fiatAmount * 0.5) / 100;
+    const netAmount = fiatAmount - fee;
 
-    const transaction = await prisma.$transaction(async (tx) => {
-      await tx.wallet.update({
-        where: { id: wallet.id },
-        data: { balance: { decrement: amount } },
-      });
+    console.log('[TATUM] Sell crypto:', { userId, fromCurrency, toCurrency, amount, netAmount, rate });
 
-      await tx.wallet.update({
-        where: { id: toWallet!.id },
-        data: { balance: { increment: netAmount } },
-      });
-
-      return tx.transaction.create({
-        data: {
-          userId,
-          type: 'trade',
-          subtype: 'sell',
-          currency: toCurrency,
-          amount: netAmount,
-          fee,
-          status: 'success',
-          reference,
-          description: `Sell ${amount.toFixed(8)} ${fromCurrency} for ${toCurrency}`,
-          metadata: {
-            fromCurrency,
-            toCurrency,
-            cryptoAmount: amount,
-            rate,
-            provider: 'tatum',
-          },
-        },
-      });
-    });
-
-    return transaction as unknown as Transaction;
+    return await this.executeTrade(userId, fromCurrency, toCurrency, amount, netAmount, fee, 'sell');
   }
 
   async swapCrypto(userId: string, fromCurrency: string, toCurrency: string, amount: number): Promise<Transaction> {
     const rates = await this.getRates();
-    const rate = rates[`${toCurrency}_${fromCurrency}` as keyof ExchangeRates];
+    const rateKey = `${toCurrency}_${fromCurrency}`;
+    const rate = rates[rateKey as keyof ExchangeRates];
 
-    if (!rate) throw new Error('Invalid currency pair');
-
-    const fromWallet = await prisma.wallet.findUnique({
-      where: { userId_currency: { userId, currency: fromCurrency } },
-    });
-    if (!fromWallet) throw new Error(`${fromCurrency} wallet not found`);
-
-    const balance = Number(fromWallet.balance);
-    if (balance < amount) throw new Error(`Insufficient ${fromCurrency} balance`);
-    if (amount <= 0) throw new Error('Amount must be positive');
+    if (!rate) {
+      throw new Error(`Exchange rate not available for ${toCurrency}_${fromCurrency}`);
+    }
 
     const toAmount = amount * rate;
     const fee = (toAmount * 0.3) / 100;
     const netAmount = toAmount - fee;
 
+    console.log('[TATUM] Swap crypto:', { userId, fromCurrency, toCurrency, amount, netAmount, rate });
+
+    return await this.executeTrade(userId, fromCurrency, toCurrency, amount, netAmount, fee, 'swap');
+  }
+
+  private async executeTrade(
+    userId: string,
+    fromCurrency: string,
+    toCurrency: string,
+    fromAmount: number,
+    toAmount: number,
+    fee: number,
+    action: string
+  ): Promise<Transaction> {
+    const { PrismaClient } = await import('@prisma/client');
+    const prisma = new PrismaClient();
+    const reference = generateReference();
+
+    const fromWallet = await prisma.wallet.findUnique({
+      where: { userId_currency: { userId, currency: fromCurrency } },
+    });
+
+    if (!fromWallet) {
+      throw new Error(`${fromCurrency} wallet not found`);
+    }
+
+    const fromBalance = Number(fromWallet.balance);
+    if (fromBalance < fromAmount) {
+      throw new Error(`Insufficient ${fromCurrency} balance`);
+    }
+
     let toWallet = await prisma.wallet.findUnique({
       where: { userId_currency: { userId, currency: toCurrency } },
     });
+
     if (!toWallet) {
       toWallet = await prisma.wallet.create({
-        data: { userId, currency: toCurrency, isCrypto: true, balance: 0 },
+        data: {
+          userId,
+          currency: toCurrency,
+          isCrypto: ['BTC', 'ETH', 'USDT'].includes(toCurrency),
+          balance: 0,
+        },
       });
     }
-
-    const reference = generateReference();
 
     const transaction = await prisma.$transaction(async (tx) => {
       await tx.wallet.update({
         where: { id: fromWallet.id },
-        data: { balance: { decrement: amount } },
+        data: { balance: { decrement: fromAmount } },
       });
 
       await tx.wallet.update({
         where: { id: toWallet!.id },
-        data: { balance: { increment: netAmount } },
+        data: { balance: { increment: toAmount } },
       });
 
       return tx.transaction.create({
         data: {
           userId,
           type: 'trade',
-          subtype: 'swap',
+          subtype: action,
           currency: toCurrency,
-          amount: netAmount,
+          amount: toAmount,
           fee,
           status: 'success',
           reference,
-          description: `Swap ${amount.toFixed(8)} ${fromCurrency} for ${toCurrency}`,
-          metadata: {
-            fromCurrency,
-            toCurrency,
-            fromAmount: amount,
-            rate,
-            provider: 'tatum',
-          },
+          description: `${action} ${toAmount.toFixed(8)} ${toCurrency} with ${fromAmount.toFixed(2)} ${fromCurrency}`,
+          metadata: { fromCurrency, toCurrency, fromAmount, action, provider: 'tatum' },
         },
       });
     });
 
+    console.log('[TATUM] Trade completed:', reference);
     return transaction as unknown as Transaction;
-  }
-
-  async getSupportedCrypto(): Promise<string[]> {
-    return ['BTC', 'ETH', 'USDT'];
   }
 }
 
