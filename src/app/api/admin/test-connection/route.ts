@@ -34,9 +34,9 @@ async function testDatabase(): Promise<TestResult> {
 }
 
 async function testFlutterwave(): Promise<TestResult> {
-  const apiKey = process.env.FLUTTERWAVE_CLIENT_ID;
+  const apiKey = process.env.FLUTTERWAVE_SECRET_KEY;
   if (!apiKey) {
-    return { success: false, message: 'Flutterwave API key not configured', error: 'FLUTTERWAVE_CLIENT_ID missing' };
+    return { success: false, message: 'Flutterwave API key not configured', error: 'FLUTTERWAVE_SECRET_KEY missing' };
   }
 
   const start = Date.now();

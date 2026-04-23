@@ -77,7 +77,7 @@ async function checkDatabase(): Promise<HealthStatus> {
 
 async function checkExternalServices(): Promise<Record<string, HealthStatus>> {
   const services: Record<string, Promise<HealthStatus>> = {
-    flutterwave: checkUrl('https://api.flutterwave.com/v3/ping', 'FLUTTERWAVE_CLIENT_ID'),
+    flutterwave: checkUrl('https://api.flutterwave.com/v3/ping', 'FLUTTERWAVE_SECRET_KEY'),
     tatum: checkUrl('https://api.tatum.io/v3/health', 'TATUM_API_KEY'),
     email: checkEmailService(),
   };
