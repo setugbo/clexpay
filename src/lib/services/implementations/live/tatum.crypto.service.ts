@@ -22,10 +22,10 @@ async function tatumRequest(endpoint: string): Promise<unknown> {
 
   const response = await fetch(`${TATUM_BASE_URL}${endpoint}`, {
     method: 'GET',
-    headers: {
+    headers: new Headers({
       'x-api-key': TATUM_API_KEY,
       'Content-Type': 'application/json',
-    },
+    }),
   });
 
   if (!response.ok) {

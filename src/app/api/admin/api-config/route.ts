@@ -92,10 +92,10 @@ export async function GET(request: NextRequest) {
       try {
         const response = await fetch('https://api.flutterwave.com/v3/banks/NG', {
           method: 'GET',
-          headers: {
+          headers: new Headers({
             'Content-Type': 'application/json',
             Authorization: `Bearer ${process.env.FLUTTERWAVE_SECRET_KEY}`,
-          },
+          }),
         });
         tests.push({
           service: 'Flutterwave',
@@ -126,10 +126,10 @@ export async function GET(request: NextRequest) {
       try {
         const response = await fetch('https://api.tatum.io/v3/rates', {
           method: 'GET',
-          headers: {
-            'x-api-key': process.env.TATUM_API_KEY,
+          headers: new Headers({
+            'x-api-key': process.env.TATUM_API_KEY || '',
             'Content-Type': 'application/json',
-          },
+          }),
         });
         tests.push({
           service: 'Tatum',
