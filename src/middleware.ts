@@ -48,11 +48,13 @@ function getLimitForRoute(path: string): number {
 
 setInterval(() => {
   const now = Date.now();
-  for (const [key, entry] of rateLimitMap.entries()) {
+  const keysToDelete: string[] = [];
+  rateLimitMap.forEach((entry, key) => {
     if (now > entry.resetTime) {
-      rateLimitMap.delete(key);
+      keysToDelete.push(key);
     }
-  }
+  });
+  keysToDelete.forEach(key => rateLimitMap.delete(key));
 }, RATE_LIMIT_WINDOW);
 
 export function middleware(request: NextRequest) {
