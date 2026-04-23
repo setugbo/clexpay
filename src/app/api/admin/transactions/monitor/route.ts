@@ -70,10 +70,15 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { action, transactionId, status, reason } = body;
 
+    const VALID_STATUSES = ['pending', 'success', 'failed', 'cancelled'];
+
     switch (action) {
       case 'update_status':
         if (!transactionId || !status) {
           return NextResponse.json({ success: false, error: 'Transaction ID and status required' }, { status: 400 });
+        }
+        if (!VALID_STATUSES.includes(status)) {
+          return NextResponse.json({ success: false, error: 'Invalid status value' }, { status: 400 });
         }
         const updated = await updateTransactionStatus(transactionId, status, reason);
         if (!updated) {

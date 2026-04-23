@@ -1,6 +1,6 @@
 import prisma from '@/lib/prisma';
 
-export type TransactionStatus = 'pending' | 'processing' | 'success' | 'failed' | 'cancelled';
+export type TransactionStatus = 'pending' | 'success' | 'failed' | 'cancelled';
 
 export interface TransactionMonitor {
   id: string;
@@ -28,7 +28,6 @@ export interface MonitoringAlert {
 }
 
 const STUCK_THRESHOLD_MS = 15 * 60 * 1000;
-const MAX_RETRY_COUNT = 3;
 
 export async function getStuckTransactions(): Promise<TransactionMonitor[]> {
   const threshold = new Date(Date.now() - STUCK_THRESHOLD_MS);
