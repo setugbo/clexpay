@@ -127,16 +127,16 @@ export async function GET(request: Request) {
         overview: {
           newUsers: userStats._count || 0,
           totalTransactions: transactionStats._count || 0,
-          totalVolume: transactionStats._sum?.amount || 0,
-          platformRevenue: revenueStats._sum?.fee || 0,
+          totalVolume: Number(transactionStats._sum?.amount) || 0,
+          platformRevenue: Number(revenueStats._sum?.fee) || 0,
         },
         walletBalances: {
-          totalHeld: walletStats._sum?.balance || 0,
+          totalHeld: Number(walletStats._sum?.balance) || 0,
         },
         volumeByType: volumeByType.reduce((acc, item) => {
           acc[item.type] = {
             count: item._count,
-            volume: item._sum?.amount || 0,
+            volume: Number(item._sum?.amount) || 0,
           };
           return acc;
         }, {} as Record<string, { count: number; volume: number }>),
@@ -173,7 +173,7 @@ async function getDailyStats(dateRange: DateRange) {
     stats.push({
       date: dayStart.toISOString().split('T')[0],
       transactions: dayTransactions._count || 0,
-      volume: dayTransactions._sum?.amount || 0,
+      volume: Number(dayTransactions._sum?.amount) || 0,
       newUsers: dayUsers,
     });
   }
