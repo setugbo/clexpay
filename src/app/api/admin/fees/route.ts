@@ -88,7 +88,11 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ success: false, error: validation.message }, { status: 400 });
     }
 
-    const currentFees = (await prisma.setting.findUnique({ where: { key: 'fees' } })?.value as FeeConfig) || DEFAULT_FEES;
+    const feesSetting = await prisma.setting.findUnique({
+      where: { key: 'fees' },
+    });
+
+    const currentFees = (feesSetting?.value as FeeConfig | null) || DEFAULT_FEES;
     const newFees: FeeConfig = { ...currentFees, ...fees };
 
     await prisma.setting.upsert({
