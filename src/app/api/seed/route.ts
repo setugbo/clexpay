@@ -13,7 +13,7 @@ export async function POST() {
     await prisma.transaction.deleteMany({});
     await prisma.activityLog.deleteMany({});
     await prisma.wallet.deleteMany({});
-    await prisma.user.deleteMany({ where: { email: { not: 'deleted' } } } });
+    await prisma.user.deleteMany({});
 
     const superAdmin = await prisma.user.create({
       data: {
