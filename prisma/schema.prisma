@@ -123,3 +123,24 @@ model ActivityLog {
   @@index([createdAt])
   @@map("activity_logs")
 }
+
+model ApiError {
+  id           String   @id @default(uuid())
+  endpoint     String   @map("endpoint")
+  method       String   @map("method")
+  errorCode    String?  @map("error_code")
+  errorMessage String   @map("error_message")
+  stackTrace   String?  @map("stack_trace")
+  requestData  Json?    @map("request_data")
+  statusCode   Int      @map("status_code")
+  resolved     Boolean  @default(false) @map("resolved")
+  resolvedBy   String?  @map("resolved_by")
+  resolvedAt   DateTime? @map("resolved_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([endpoint])
+  @@index([statusCode])
+  @@index([resolved])
+  @@index([createdAt])
+  @@map("api_errors")
+}

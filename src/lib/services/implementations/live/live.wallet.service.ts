@@ -2,7 +2,7 @@ import { PrismaClient } from '@prisma/client';
 import { IWalletService } from '../../interfaces/wallet.service.interface';
 import { Wallet, Transaction } from '@/types';
 import { generateReference } from '@/lib/utils';
-import { getExchangeRates } from '../../factory';
+import { sendTransactionEmail } from '@/lib/email';
 
 const prisma = new PrismaClient();
 
@@ -26,88 +26,96 @@ export class LiveWalletService implements IWalletService {
     });
 
     if (!wallet) {
-      const wallets = await this.initializeWallets(userId);
-      return wallets.find(w => w.currency === currency) || null;
+      await this.initializeWallets(userId);
+      return prisma.wallet.findUnique({
+        where: { userId_currency: { userId, currency } },
+      }) as Promise<Wallet | null>;
     }
 
     return wallet as Wallet;
   }
 
   async fundWallet(userId: string, currency: string, amount: number): Promise<Transaction> {
+    if (amount < 100) {
+      throw new Error('Minimum funding amount is NGN 100');
+    }
+
     const wallet = await this.getWallet(userId, currency);
     if (!wallet) throw new Error('Wallet not found');
-    if (amount <= 0) throw new Error('Amount must be positive');
 
     const reference = generateReference();
 
-    const [transaction] = await prisma.$transaction([
-      prisma.wallet.update({
+    const transaction = await prisma.$transaction(async (tx) => {
+      await tx.wallet.update({
         where: { id: wallet.id },
         data: { balance: { increment: amount } },
-      }),
-      prisma.transaction.create({
+      });
+
+      return tx.transaction.create({
         data: {
           userId,
           type: 'deposit',
           currency,
           amount,
           fee: 0,
-          status: 'pending',
+          status: 'success',
           reference,
           description: `Wallet funding - ${currency}`,
         },
-      }),
-    ]);
-
-    await prisma.transaction.update({
-      where: { id: transaction.id },
-      data: { status: 'success' },
+      });
     });
+
+    this.sendTransactionNotification(userId, 'Wallet Funding', amount, currency, reference, 'success');
 
     return transaction as unknown as Transaction;
   }
 
   async withdraw(userId: string, currency: string, amount: number): Promise<Transaction> {
+    if (amount < 500) {
+      throw new Error('Minimum withdrawal amount is NGN 500');
+    }
+
     const wallet = await this.getWallet(userId, currency);
     if (!wallet) throw new Error('Wallet not found');
-    if (amount <= 0) throw new Error('Amount must be positive');
-    
+
     const balance = Number(wallet.balance);
     if (balance < amount) throw new Error('Insufficient balance');
 
     const reference = generateReference();
 
-    const [transaction] = await prisma.$transaction([
-      prisma.wallet.update({
+    const transaction = await prisma.$transaction(async (tx) => {
+      await tx.wallet.update({
         where: { id: wallet.id },
         data: { balance: { decrement: amount } },
-      }),
-      prisma.transaction.create({
+      });
+
+      return tx.transaction.create({
         data: {
           userId,
           type: 'withdrawal',
           currency,
           amount,
           fee: 0,
-          status: 'pending',
+          status: 'success',
           reference,
           description: `Withdrawal - ${currency}`,
         },
-      }),
-    ]);
-
-    await prisma.transaction.update({
-      where: { id: transaction.id },
-      data: { status: 'success' },
+      });
     });
+
+    this.sendTransactionNotification(userId, 'Withdrawal', amount, currency, reference, 'success');
 
     return transaction as unknown as Transaction;
   }
 
   async transfer(fromUserId: string, toEmail: string, currency: string, amount: number): Promise<Transaction> {
+    if (amount <= 0) {
+      throw new Error('Transfer amount must be positive');
+    }
+
     const fromWallet = await this.getWallet(fromUserId, currency);
     if (!fromWallet) throw new Error('Source wallet not found');
-    
+
     const balance = Number(fromWallet.balance);
     if (balance < amount) throw new Error('Insufficient balance');
 
@@ -146,6 +154,8 @@ export class LiveWalletService implements IWalletService {
       });
     });
 
+    this.sendTransactionNotification(fromUserId, 'Transfer Sent', amount, currency, reference, 'success');
+
     return transaction as unknown as Transaction;
   }
 
@@ -171,5 +181,29 @@ export class LiveWalletService implements IWalletService {
     );
 
     return wallets as unknown as Wallet[];
+  }
+
+  private async sendTransactionNotification(
+    userId: string,
+    type: string,
+    amount: number,
+    currency: string,
+    reference: string,
+    status: string
+  ): Promise<void> {
+    try {
+      const user = await prisma.user.findUnique({ where: { id: userId } });
+      if (user?.email) {
+        await sendTransactionEmail(user.email, {
+          type,
+          amount: amount.toLocaleString(),
+          currency,
+          reference,
+          status,
+        });
+      }
+    } catch (error) {
+      console.error('Failed to send transaction email:', error);
+    }
   }
 }

@@ -6,27 +6,56 @@ import { sendOTPEmail, sendWelcomeEmail } from '@/lib/email';
 
 export const dynamic = 'force-dynamic';
 
+function validateEmail(email: string): boolean {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+}
+
+function validatePassword(password: string): { valid: boolean; message: string } {
+  if (password.length < 8) {
+    return { valid: false, message: 'Password must be at least 8 characters' };
+  }
+  if (!/[A-Z]/.test(password)) {
+    return { valid: false, message: 'Password must contain at least one uppercase letter' };
+  }
+  if (!/[a-z]/.test(password)) {
+    return { valid: false, message: 'Password must contain at least one lowercase letter' };
+  }
+  if (!/[0-9]/.test(password)) {
+    return { valid: false, message: 'Password must contain at least one number' };
+  }
+  return { valid: true, message: 'Password is valid' };
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { email, password, firstName, lastName, phone } = body;
 
-    if (!email || !password) {
+    if (!email || !password || !firstName || !lastName) {
       return NextResponse.json(
-        { success: false, error: 'Email and password are required' },
+        { success: false, error: 'All fields are required' },
         { status: 400 }
       );
     }
 
-    if (password.length < 6) {
+    if (!validateEmail(email)) {
       return NextResponse.json(
-        { success: false, error: 'Password must be at least 6 characters' },
+        { success: false, error: 'Invalid email format' },
+        { status: 400 }
+      );
+    }
+
+    const passwordValidation = validatePassword(password);
+    if (!passwordValidation.valid) {
+      return NextResponse.json(
+        { success: false, error: passwordValidation.message },
         { status: 400 }
       );
     }
 
     const existingUser = await prisma.user.findUnique({
-      where: { email },
+      where: { email: email.toLowerCase() },
     });
 
     if (existingUser) {
@@ -42,13 +71,14 @@ export async function POST(request: NextRequest) {
 
     const user = await prisma.user.create({
       data: {
-        email,
+        email: email.toLowerCase(),
         passwordHash,
         firstName,
         lastName,
         phone,
         status: 'active',
-        emailVerified: true,
+        emailVerified: false,
+        role: 'user',
         otpCode,
         otpExpiresAt,
       },
@@ -63,20 +93,33 @@ export async function POST(request: NextRequest) {
       ],
     });
 
-    await sendWelcomeEmail(email, firstName || 'User');
+    const otpSent = await sendOTPEmail(email, otpCode);
+
+    await prisma.activityLog.create({
+      data: {
+        userId: user.id,
+        action: 'user.registered',
+        entityType: 'user',
+        entityId: user.id,
+        details: { email, firstName, lastName, otpSent },
+      },
+    });
 
     return NextResponse.json({
       success: true,
-      message: 'Account created successfully! Please fund your wallet to start trading.',
+      message: otpSent 
+        ? 'Account created! Please verify your email with the OTP sent.' 
+        : 'Account created! Contact support if you don\'t receive OTP.',
       data: {
         userId: user.id,
-        verified: true,
+        verified: false,
+        requiresVerification: true,
       },
     });
   } catch (error) {
     console.error('Registration error:', error);
     return NextResponse.json(
-      { success: false, error: 'Registration failed' },
+      { success: false, error: 'Registration failed. Please try again.' },
       { status: 500 }
     );
   }

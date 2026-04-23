@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { sendWelcomeEmail } from '@/lib/email';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,8 +16,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (!/^\d{6}$/.test(otp)) {
+      return NextResponse.json(
+        { success: false, error: 'OTP must be 6 digits' },
+        { status: 400 }
+      );
+    }
+
     const user = await prisma.user.findUnique({
-      where: { email },
+      where: { email: email.toLowerCase() },
     });
 
     if (!user) {
@@ -35,19 +43,15 @@ export async function POST(request: NextRequest) {
     }
 
     if (user.otpCode !== otp) {
-      if (otp === '123456') {
-        // Demo mode bypass
-      } else {
-        return NextResponse.json(
-          { success: false, error: 'Invalid OTP' },
-          { status: 400 }
-        );
-      }
+      return NextResponse.json(
+        { success: false, error: 'Invalid OTP. Please check and try again.' },
+        { status: 400 }
+      );
     }
 
-    if (user.otpExpiresAt && new Date() > user.otpExpiresAt && otp !== '123456') {
+    if (user.otpExpiresAt && new Date() > user.otpExpiresAt) {
       return NextResponse.json(
-        { success: false, error: 'OTP has expired' },
+        { success: false, error: 'OTP has expired. Please request a new one.' },
         { status: 400 }
       );
     }
@@ -61,15 +65,27 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    await sendWelcomeEmail(user.email, user.firstName);
+
+    await prisma.activityLog.create({
+      data: {
+        userId: user.id,
+        action: 'user.verified',
+        entityType: 'user',
+        entityId: user.id,
+        details: { email: user.email },
+      },
+    });
+
     return NextResponse.json({
       success: true,
-      message: 'Email verified successfully',
+      message: 'Email verified successfully! Welcome to Clexpay.',
       data: { verified: true },
     });
   } catch (error) {
     console.error('OTP verification error:', error);
     return NextResponse.json(
-      { success: false, error: 'Verification failed' },
+      { success: false, error: 'Verification failed. Please try again.' },
       { status: 500 }
     );
   }
