@@ -23,14 +23,13 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const status = searchParams.get('status') || 'pending';
-
-    const whereClause = status === 'all' 
-      ? { type: 'giftcard' }
-      : { type: 'giftcard', status: status as 'pending' | 'success' | 'failed' };
+    const statusFilter = searchParams.get('status') || 'pending';
 
     const orders = await prisma.transaction.findMany({
-      where: whereClause,
+      where: {
+        type: 'giftcard' as const,
+        ...(statusFilter !== 'all' ? { status: statusFilter as 'pending' | 'success' | 'failed' } : {}),
+      },
       include: {
         user: {
           select: {
