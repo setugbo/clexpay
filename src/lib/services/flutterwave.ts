@@ -307,10 +307,11 @@ export async function getBanks(): Promise<{ banks: Bank[]; error?: string }> {
     const data = await response.json();
 
     if (data.status === 'success' && Array.isArray(data.data)) {
-      cachedBanks = data.data.filter((bank: Bank) => bank.active && bank.country === 'NG');
+      const filteredBanks = data.data.filter((bank: Bank) => bank.active && bank.country === 'NG');
+      cachedBanks = filteredBanks;
       banksCacheTime = Date.now();
-      console.log('[FLUTTERWAVE] Banks cached:', cachedBanks.length);
-      return { banks: cachedBanks };
+      console.log('[FLUTTERWAVE] Banks cached:', filteredBanks.length);
+      return { banks: filteredBanks };
     }
 
     return {
