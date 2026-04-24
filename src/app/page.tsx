@@ -192,8 +192,14 @@ export default function HomePage() {
               </div>
             </div>
           </div>
-          <div className="border-t border-slate-800 pt-8 text-center">
-            <p className="text-sm">© 2024 Clexpay. All rights reserved. RC: 1234567</p>
+          <div className="border-t border-slate-800 pt-8">
+            <div className="flex flex-wrap justify-center gap-4 text-sm">
+              <Link href="/policy/privacy" className="hover:text-white">Privacy Policy</Link>
+              <Link href="/policy/terms" className="hover:text-white">Terms of Service</Link>
+              <Link href="/policy/cookies" className="hover:text-white">Cookie Policy</Link>
+              <Link href="/policy/whistleblower" className="hover:text-white">Whistleblower Policy</Link>
+            </div>
+            <p className="text-center text-sm mt-4">© 2024 Clexpay. All rights reserved. RC: 1234567</p>
           </div>
         </div>
       </footer>

@@ -26,7 +26,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     setToasts((prev) => [...prev, { ...toast, id }]);
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, 5000);
+    }, 8000);
   }, []);
 
   const dismiss = useCallback((id: string) => {
@@ -53,21 +53,17 @@ function ToastContainer({ toasts, dismiss }: { toasts: Toast[]; dismiss: (id: st
   if (toasts.length === 0) return null;
 
   return (
-    <div className="fixed top-4 right-4 z-[100] flex flex-col gap-2 max-w-md w-full">
+    <div className="fixed bottom-4 right-4 z-[100] flex flex-col gap-2 max-w-md w-full md:bottom-8 md:right-8 md:w-auto">
       {toasts.map((t) => (
         <div
           key={t.id}
-          className={`flex items-start gap-3 p-4 rounded-xl border shadow-lg animate-in slide-in-from-top ${
-            t.variant === 'destructive' ? 'bg-red-50 border-red-200 text-red-900' :
-            t.variant === 'success' ? 'bg-green-50 border-green-200 text-green-900' :
-            'bg-white border-slate-200'
-          }`}
+          className={`flex items-start gap-3 p-4 rounded-xl border shadow-xl animate-in slide-in-from-bottom ${t.variant === 'destructive' ? 'bg-red-50 border-red-300 text-red-900' : t.variant === 'success' ? 'bg-green-50 border-green-300 text-green-900' : 'bg-white border-slate-200'}`}
         >
-          <div className="flex-1">
-            {t.title && <p className="font-semibold text-sm">{t.title}</p>}
-            {t.description && <p className="text-sm opacity-80">{t.description}</p>}
+          <div className="flex-1 min-w-0">
+            {t.title && <p className="font-semibold text-sm break-words">{t.title}</p>}
+            {t.description && <p className="text-sm opacity-80 break-words">{t.description}</p>}
           </div>
-          <button onClick={() => dismiss(t.id)} className="opacity-50 hover:opacity-100">
+          <button onClick={() => dismiss(t.id)} className="opacity-50 hover:opacity-100 flex-shrink-0">
             <X className="h-4 w-4" />
           </button>
         </div>
