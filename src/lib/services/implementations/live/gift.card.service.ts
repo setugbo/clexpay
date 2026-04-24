@@ -17,6 +17,51 @@ const USDT_RATE = 1500;
 const AUTO_THRESHOLD_NGN = 100000;
 const MAX_AUTO_RETRY = 2;
 
+export const ORDER_STATUS = {
+  INITIATED: 'initiated',
+  PROCESSING: 'processing',
+  AUTO_ATTEMPT: 'auto_attempt',
+  COMPLETED: 'completed',
+  MANUAL_QUEUE: 'manual_queue',
+  FAILED: 'failed',
+  REFUNDED: 'refunded',
+  FLAGGED: 'flagged',
+} as const;
+
+export type OrderStatus = typeof ORDER_STATUS[keyof typeof ORDER_STATUS];
+
+export const GIFT_CARD_CATEGORIES: GiftCardCategory[] = [
+  {
+    id: 'entertainment', name: 'Entertainment', icon: 'gamepad-2',
+    products: [
+      { id: 'steam', categoryId: 'entertainment', name: 'Steam Gift Card', brand: 'Steam', minAmount: 5, maxAmount: 100, image: '/cards/steam.png', reloadlyId: 1 },
+      { id: 'playstation', categoryId: 'entertainment', name: 'PlayStation Gift Card', brand: 'PlayStation', minAmount: 10, maxAmount: 100, image: '/cards/playstation.png', reloadlyId: 2 },
+      { id: 'xbox', categoryId: 'entertainment', name: 'Xbox Gift Card', brand: 'Xbox', minAmount: 10, maxAmount: 100, image: '/cards/xbox.png', reloadlyId: 3 },
+    ],
+  },
+  {
+    id: 'shopping', name: 'Shopping', icon: 'shopping-bag',
+    products: [
+      { id: 'amazon', categoryId: 'shopping', name: 'Amazon Gift Card', brand: 'Amazon', minAmount: 10, maxAmount: 500, image: '/cards/amazon.png', reloadlyId: 5 },
+      { id: 'walmart', categoryId: 'shopping', name: 'Walmart Gift Card', brand: 'Walmart', minAmount: 10, maxAmount: 500, image: '/cards/walmart.png', reloadlyId: 6 },
+    ],
+  },
+  {
+    id: 'streaming', name: 'Streaming', icon: 'play',
+    products: [
+      { id: 'netflix', categoryId: 'streaming', name: 'Netflix Gift Card', brand: 'Netflix', minAmount: 10, maxAmount: 100, image: '/cards/netflix.png', reloadlyId: 8 },
+      { id: 'spotify', categoryId: 'streaming', name: 'Spotify Gift Card', brand: 'Spotify', minAmount: 10, maxAmount: 100, image: '/cards/spotify.png', reloadlyId: 9 },
+    ],
+  },
+  {
+    id: 'gaming', name: 'Gaming', icon: 'gamepad',
+    products: [
+      { id: 'robux', categoryId: 'gaming', name: 'Robux', brand: 'Roblox', minAmount: 10, maxAmount: 100, image: '/cards/roblox.png', reloadlyId: 13 },
+      { id: 'google-play', categoryId: 'gaming', name: 'Google Play', brand: 'Google', minAmount: 10, maxAmount: 100, image: '/cards/google.png', reloadlyId: 11 },
+    ],
+  },
+];
+
 export class GiftCardService {
   private getFee(productId: string, amount: number): number {
     const feePercent = DYNAMIC_FEES[productId] || 3;
