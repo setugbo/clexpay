@@ -29,7 +29,7 @@ interface ReloadlyOrderRequest {
   unitPrice?: number;
 }
 
-interface ReloadlyOrderResponse {
+export interface ReloadlyOrderResponse {
   orderId: number;
   transactionId: string;
   status: 'SUCCESSFUL' | 'PENDING' | 'FAILED';
