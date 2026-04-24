@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import prisma from '@/lib/prisma';
-import { hybridGiftCardService, ORDER_STATUS } from '@/lib/services/implementations/live/hybrid.giftcard.service';
+import { giftCardService, ORDER_STATUS } from '@/lib/services/implementations/live/gift.card.service';
 import { sendTransactionEmail } from '@/lib/email';
 
 export const dynamic = 'force-dynamic';
@@ -21,19 +21,13 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const status = searchParams.get('status');
+    const view = searchParams.get('view');
 
     let orders;
-    if (status === 'manual_queue') {
-      orders = await hybridGiftCardService.getManualQueueOrders();
-    } else if (status === 'completed') {
-      orders = await hybridGiftCardService.getCompletedOrders();
-    } else if (status) {
-      orders = await prisma.transaction.findMany({
-        where: { type: 'giftcard', status: status as 'pending' | 'success' | 'failed' },
-        include: { user: { select: { id: true, email: true, firstName: true, lastName: true } } },
-        orderBy: { createdAt: 'desc' },
-      });
+    if (view === 'manual_queue') {
+      orders = await giftCardService.getManualQueueOrders();
+    } else if (view === 'pending') {
+      orders = await giftCardService.getPendingOrders();
     } else {
       orders = await prisma.transaction.findMany({
         where: { type: 'giftcard' },
@@ -42,7 +36,7 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    const stats = await hybridGiftCardService.getOrderStats();
+    const stats = await giftCardService.getOrderStats();
 
     return NextResponse.json({
       success: true,
@@ -50,25 +44,13 @@ export async function GET(request: NextRequest) {
         orders,
         stats: {
           ...stats,
-          statuses: {
-            initiated: ORDER_STATUS.INITIATED,
-            processing: ORDER_STATUS.PROCESSING,
-            autoFulfilled: ORDER_STATUS.AUTO_FULFILLED,
-            manualQueue: ORDER_STATUS.MANUAL_QUEUE,
-            completed: ORDER_STATUS.COMPLETED,
-            failed: ORDER_STATUS.FAILED,
-            refunded: ORDER_STATUS.REFUNDED,
-            flagged: ORDER_STATUS.FLAGGED,
-          },
+          statuses: ORDER_STATUS,
         },
       },
     });
   } catch (error) {
     console.error('Get gift card orders error:', error);
-    return NextResponse.json(
-      { success: false, error: 'Failed to get orders' },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, error: 'Failed to get orders' }, { status: 500 });
   }
 }
 
@@ -85,6 +67,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Super admin access required' }, { status: 403 });
     }
 
+    const adminId = (session.user as { id?: string }).id!;
     const body = await request.json();
     const { transactionId, cardCode, action } = body;
 
@@ -105,63 +88,27 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Invalid transaction type' }, { status: 400 });
     }
 
-    if (action === 'reject' || action === 'refund') {
-      await hybridGiftCardService.rejectOrder(transactionId, body.reason);
-
-      await prisma.activityLog.create({
-        data: {
-          userId: transaction.userId,
-          action: 'giftcard_order_rejected',
-          entityType: 'transaction',
-          entityId: transaction.id,
-          details: {
-            adminId: (session.user as { id?: string }).id,
-            reason: body.reason || 'Order rejected by admin',
-          },
-        },
-      });
-
-      return NextResponse.json({
-        success: true,
-        message: 'Order rejected and funds refunded',
-      });
+    if (action === 'reject') {
+      await giftCardService.rejectOrder(transactionId, adminId, body.reason);
+      return NextResponse.json({ success: true, message: 'Order rejected and refunded' });
     }
 
     if (action === 'flag') {
       if (!body.reason) {
         return NextResponse.json({ success: false, error: 'Flag reason required' }, { status: 400 });
       }
-
-      await hybridGiftCardService.flagOrder(transactionId, body.reason);
-
-      return NextResponse.json({
-        success: true,
-        message: 'Order flagged for review',
-      });
+      await giftCardService.flagOrder(transactionId, adminId, body.reason);
+      return NextResponse.json({ success: true, message: 'Order flagged for review' });
     }
 
     if (!cardCode) {
-      return NextResponse.json({ success: false, error: 'Card code is required for fulfillment' }, { status: 400 });
+      return NextResponse.json({ success: false, error: 'Card code is required' }, { status: 400 });
     }
 
-    await hybridGiftCardService.fulfillOrder(transactionId, cardCode);
-
-    await prisma.activityLog.create({
-      data: {
-        userId: transaction.userId,
-        action: 'giftcard_fulfilled_by_admin',
-        entityType: 'transaction',
-        entityId: transaction.id,
-        details: {
-          adminId: (session.user as { id?: string }).id,
-          cardCode,
-        },
-      },
-    });
-
-    const meta = transaction.metadata as Record<string, unknown> | null;
+    await giftCardService.fulfillManualOrder(transactionId, cardCode, adminId);
 
     if (transaction.user?.email) {
+      const meta = transaction.metadata as Record<string, any> | null;
       await sendTransactionEmail(transaction.user.email, {
         type: 'Gift Card Delivered',
         amount: String(transaction.amount),
@@ -175,16 +122,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       message: 'Gift card fulfilled successfully',
-      data: {
-        cardCode,
-        transactionId,
-      },
+      data: { cardCode, transactionId },
     });
   } catch (error) {
     console.error('Fulfill gift card error:', error);
-    return NextResponse.json(
-      { success: false, error: 'Failed to fulfill order' },
-      { status: 500 }
-    );
+    const message = error instanceof Error ? error.message : 'Failed to fulfill order';
+    return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }
