@@ -1,36 +1,33 @@
 import { PrismaClient } from '@prisma/client';
-import { IWalletService } from './interfaces/wallet.service.interface';
-import { ICryptoService } from './interfaces/crypto.service.interface';
-import { IBillService } from './interfaces/bill.service.interface';
-import { IGiftCardService } from './interfaces/giftcard.service.interface';
 import { LiveWalletService } from './implementations/live/live.wallet.service';
 import { TatumCryptoService } from './implementations/live/tatum.crypto.service';
 import { FlutterwaveBillService } from './implementations/live/flutterwave.bill.service';
 import { GiftCardService } from './implementations/live/gift.card.service';
 
 const prisma = new PrismaClient();
+const giftCardService = new GiftCardService();
 
-export async function walletServiceFactory(): Promise<IWalletService> {
+export async function walletServiceFactory() {
   return new LiveWalletService();
 }
 
-export async function cryptoServiceFactory(): Promise<ICryptoService> {
+export async function cryptoServiceFactory() {
   return new TatumCryptoService();
 }
 
-export async function billServiceFactory(): Promise<IBillService> {
+export async function billServiceFactory() {
   return new FlutterwaveBillService();
 }
 
-export async function giftCardServiceFactory(): Promise<IGiftCardService> {
-  return new GiftCardService();
+export async function giftCardServiceFactory() {
+  return giftCardService;
 }
 
-export async function getCurrentMode(): Promise<'live'> {
-  return 'live';
+export async function getCurrentMode() {
+  return 'live' as const;
 }
 
-export async function setSystemMode(mode: 'live'): Promise<void> {
+export async function setSystemMode(mode: 'live') {
   await prisma.setting.upsert({
     where: { key: 'system_mode' },
     update: { value: { mode: 'live' } },
@@ -38,7 +35,7 @@ export async function setSystemMode(mode: 'live'): Promise<void> {
   });
 }
 
-export async function getExchangeRates(): Promise<{ BTC_NGN: number; ETH_NGN: number; USDT_NGN: number }> {
+export async function getExchangeRates() {
   try {
     const setting = await prisma.setting.findUnique({
       where: { key: 'exchange_rates' },
@@ -67,7 +64,7 @@ export async function getExchangeRates(): Promise<{ BTC_NGN: number; ETH_NGN: nu
   }
 }
 
-export async function getFees(): Promise<Record<string, number>> {
+export async function getFees() {
   try {
     const setting = await prisma.setting.findUnique({
       where: { key: 'fees' },
@@ -78,25 +75,17 @@ export async function getFees(): Promise<Record<string, number>> {
     }
 
     return {
-      cryptoBuy: 0.5,
-      cryptoSell: 0.5,
-      transfer: 0,
+      cryptoBuy: 1,
+      cryptoSell: 1,
+      transfer: 50,
       bill: 100,
     };
   } catch {
     return {
-      cryptoBuy: 0.5,
-      cryptoSell: 0.5,
-      transfer: 0,
+      cryptoBuy: 1,
+      cryptoSell: 1,
+      transfer: 50,
       bill: 100,
     };
   }
 }
-
-export const COMPANY_INFO = {
-  name: 'Clexpay',
-  address: 'AAAA Excel Plaza, Okpanam Road, Off Jowin Academy by Kindgdom Hall, Asaba Delta State',
-  phone: '+2349069015623',
-  email: 'hello@clexpay.com',
-  website: 'https://clexpay.vercel.app',
-};
