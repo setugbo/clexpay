@@ -5,6 +5,14 @@ import { reloadlyService } from '@/lib/services/reloadly';
 
 const prisma = new PrismaClient();
 
+const DYNAMIC_FEES: Record<string, number> = {
+  'steam': 5, 'playstation': 5, 'xbox': 5, 'nintendo': 5,
+  'amazon': 3, 'walmart': 3, 'target': 3,
+  'netflix': 3, 'youtube': 3,
+  'spotify': 2, 'apple-music': 2,
+  'google-play': 4, 'itunes': 4, 'robux': 4, 'fortnite': 5,
+};
+
 const USDT_RATE = 1500;
 const AUTO_THRESHOLD_NGN = 100000;
 const MAX_AUTO_RETRY = 2;
