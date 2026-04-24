@@ -2,7 +2,18 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import prisma from '@/lib/prisma';
-import { giftCardService, ORDER_STATUS } from '@/lib/services/implementations/live/gift.card.service';
+import { giftCardService } from '@/lib/services/implementations/live/gift.card.service';
+
+const ORDER_STATUS = {
+  INITIATED: 'initiated',
+  PROCESSING: 'processing',
+  AUTO_ATTEMPT: 'auto_attempt',
+  COMPLETED: 'completed',
+  MANUAL_QUEUE: 'manual_queue',
+  FAILED: 'failed',
+  REFUNDED: 'refunded',
+  FLAGGED: 'flagged',
+};
 import { sendTransactionEmail } from '@/lib/email';
 
 export const dynamic = 'force-dynamic';
