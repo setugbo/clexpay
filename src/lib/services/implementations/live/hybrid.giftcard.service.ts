@@ -1,7 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import { GiftCardCategory, GiftCardProduct, Transaction } from '@/types';
 import { generateReference } from '@/lib/utils';
-import { reloadlyService } from './reloadly';
+import { reloadlyService } from '@/lib/services/reloadly';
 
 const prisma = new PrismaClient();
 
