@@ -61,11 +61,19 @@ export async function sendTransactionEmail(
     currency: string;
     reference: string;
     status: string;
+    cardCode?: string;
   }
 ): Promise<boolean> {
   try {
     const statusColor = details.status === 'success' ? '#10b981' : details.status === 'failed' ? '#ef4444' : '#f59e0b';
     const statusBg = details.status === 'success' ? '#d1fae5' : details.status === 'failed' ? '#fee2e2' : '#fef3c7';
+
+    const cardCodeSection = details.cardCode ? `
+      <tr>
+        <td style="padding: 12px 0; border-bottom: 1px solid #e5e7eb; color: #6b7280;">Gift Card Code</td>
+        <td style="padding: 12px 0; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: 600; font-family: monospace; color: #10b981;">${details.cardCode}</td>
+      </tr>
+    ` : '';
 
     await transporter.sendMail({
       from: `"Clexpay" <${process.env.EMAIL_USER || 'hello@clexpay.com'}>`,
@@ -102,7 +110,14 @@ export async function sendTransactionEmail(
                   <td style="padding: 12px 0; color: #6b7280;">Reference</td>
                   <td style="padding: 12px 0; text-align: right; font-weight: 600; font-family: monospace;">${details.reference}</td>
                 </tr>
+                ${cardCodeSection}
               </table>
+              ${details.cardCode ? `
+              <div style="background: #ecfdf5; border: 2px solid #10b981; border-radius: 12px; padding: 20px; margin-top: 24px; text-align: center;">
+                <p style="color: #047857; margin: 0 0 8px 0; font-weight: 600;">Your Gift Card Code</p>
+                <p style="color: #10b981; margin: 0; font-size: 20px; font-weight: 700; letter-spacing: 4px;">${details.cardCode}</p>
+              </div>
+              ` : ''}
             </div>
           </div>
         </body>

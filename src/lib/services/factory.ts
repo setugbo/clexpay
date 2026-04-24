@@ -6,7 +6,7 @@ import { IGiftCardService } from './interfaces/giftcard.service.interface';
 import { LiveWalletService } from './implementations/live/live.wallet.service';
 import { TatumCryptoService } from './implementations/live/tatum.crypto.service';
 import { FlutterwaveBillService } from './implementations/live/flutterwave.bill.service';
-import { ManualGiftCardService } from './implementations/live/manual.giftcard.service';
+import { HybridGiftCardService } from './implementations/live/hybrid.giftcard.service';
 
 const prisma = new PrismaClient();
 
@@ -23,7 +23,7 @@ export async function billServiceFactory(): Promise<IBillService> {
 }
 
 export async function giftCardServiceFactory(): Promise<IGiftCardService> {
-  return new ManualGiftCardService();
+  return new HybridGiftCardService();
 }
 
 export async function getCurrentMode(): Promise<'live'> {

@@ -2,12 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import prisma from '@/lib/prisma';
-import { ManualGiftCardService } from '@/lib/services/implementations/live/manual.giftcard.service';
+import { hybridGiftCardService, ORDER_STATUS } from '@/lib/services/implementations/live/hybrid.giftcard.service';
 import { sendTransactionEmail } from '@/lib/email';
 
 export const dynamic = 'force-dynamic';
-
-const giftCardService = new ManualGiftCardService();
 
 export async function GET(request: NextRequest) {
   try {
@@ -23,41 +21,45 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const statusFilter = searchParams.get('status') || 'pending';
+    const status = searchParams.get('status');
 
-    const orders = await prisma.transaction.findMany({
-      where: {
-        type: 'giftcard' as const,
-        ...(statusFilter !== 'all' ? { status: statusFilter as 'pending' | 'success' | 'failed' } : {}),
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            email: true,
-            firstName: true,
-            lastName: true,
-          },
-        },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+    let orders;
+    if (status === 'manual_queue') {
+      orders = await hybridGiftCardService.getManualQueueOrders();
+    } else if (status === 'completed') {
+      orders = await hybridGiftCardService.getCompletedOrders();
+    } else if (status) {
+      orders = await prisma.transaction.findMany({
+        where: { type: 'giftcard', status: status as 'pending' | 'success' | 'failed' },
+        include: { user: { select: { id: true, email: true, firstName: true, lastName: true } } },
+        orderBy: { createdAt: 'desc' },
+      });
+    } else {
+      orders = await prisma.transaction.findMany({
+        where: { type: 'giftcard' },
+        include: { user: { select: { id: true, email: true, firstName: true, lastName: true } } },
+        orderBy: { createdAt: 'desc' },
+      });
+    }
 
-    const stats = await prisma.transaction.aggregate({
-      where: { type: 'giftcard' },
-      _count: true,
-      _sum: { amount: true },
-    });
+    const stats = await hybridGiftCardService.getOrderStats();
 
     return NextResponse.json({
       success: true,
       data: {
         orders,
         stats: {
-          total: stats._count || 0,
-          totalAmount: stats._sum?.amount || 0,
-          pending: orders.filter(o => o.status === 'pending').length,
-          completed: orders.filter(o => o.status === 'success').length,
+          ...stats,
+          statuses: {
+            initiated: ORDER_STATUS.INITIATED,
+            processing: ORDER_STATUS.PROCESSING,
+            autoFulfilled: ORDER_STATUS.AUTO_FULFILLED,
+            manualQueue: ORDER_STATUS.MANUAL_QUEUE,
+            completed: ORDER_STATUS.COMPLETED,
+            failed: ORDER_STATUS.FAILED,
+            refunded: ORDER_STATUS.REFUNDED,
+            flagged: ORDER_STATUS.FLAGGED,
+          },
         },
       },
     });
@@ -103,24 +105,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Invalid transaction type' }, { status: 400 });
     }
 
-    if (action === 'reject') {
-      await prisma.$transaction(async (tx) => {
-        const wallet = await tx.wallet.findUnique({
-          where: { userId_currency: { userId: transaction.userId, currency: 'NGN' } },
-        });
-
-        if (wallet) {
-          await tx.wallet.update({
-            where: { id: wallet.id },
-            data: { balance: { increment: transaction.amount } },
-          });
-        }
-
-        await tx.transaction.update({
-          where: { id: transactionId },
-          data: { status: 'failed', metadata: { ...transaction.metadata as object, rejectedAt: new Date().toISOString() } },
-        });
-      });
+    if (action === 'reject' || action === 'refund') {
+      await hybridGiftCardService.rejectOrder(transactionId, body.reason);
 
       await prisma.activityLog.create({
         data: {
@@ -141,15 +127,24 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    if (action === 'flag') {
+      if (!body.reason) {
+        return NextResponse.json({ success: false, error: 'Flag reason required' }, { status: 400 });
+      }
+
+      await hybridGiftCardService.flagOrder(transactionId, body.reason);
+
+      return NextResponse.json({
+        success: true,
+        message: 'Order flagged for review',
+      });
+    }
+
     if (!cardCode) {
       return NextResponse.json({ success: false, error: 'Card code is required for fulfillment' }, { status: 400 });
     }
 
-    if (!/^[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(cardCode)) {
-      return NextResponse.json({ success: false, error: 'Invalid card code format' }, { status: 400 });
-    }
-
-    await giftCardService.fulfillOrder(transactionId, cardCode);
+    await hybridGiftCardService.fulfillOrder(transactionId, cardCode);
 
     await prisma.activityLog.create({
       data: {
@@ -164,6 +159,8 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    const meta = transaction.metadata as Record<string, unknown> | null;
+
     if (transaction.user?.email) {
       await sendTransactionEmail(transaction.user.email, {
         type: 'Gift Card Delivered',
@@ -171,6 +168,7 @@ export async function POST(request: NextRequest) {
         currency: 'NGN',
         reference: transaction.reference,
         status: 'success',
+        cardCode,
       });
     }
 

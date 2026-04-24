@@ -76,6 +76,7 @@ export interface GiftCardProduct {
   minAmount: number;
   maxAmount: number;
   image: string;
+  reloadlyId?: number;
 }
 
 export interface SystemSettings {
