@@ -1,7 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import { GiftCardCategory, GiftCardProduct, Transaction } from '@/types';
 import { generateReference } from '@/lib/utils';
-import { reloadlyService } from '@/lib/services/reloadly';
+import { reloadlyService, ReloadlyOrderResponse } from '@/lib/services/reloadly';
 
 const prisma = new PrismaClient();
 
@@ -217,7 +217,6 @@ export class HybridGiftCardService {
         },
       });
 
-      const user = await prisma.user.findUnique({ where: { id: userId } });
       const reloadlyProductId = (product as GiftCardProduct & { reloadlyId?: number }).reloadlyId;
 
       if (!reloadlyProductId || amount > 100) {
@@ -225,22 +224,26 @@ export class HybridGiftCardService {
         return;
       }
 
-      const result = await reloadlyService.fulfillInstant(
-        reloadlyProductId,
-        amount,
-        user?.email
-      );
+      try {
+        const result = await Promise.race([
+          reloadlyService.fulfillInstant(reloadlyProductId, amount),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000)),
+        ]) as { success: boolean; order?: ReloadlyOrderResponse; error?: string };
 
-      if (result.success && result.order) {
-        await this.completeWithCode(
-          transactionId,
-          result.order.pinDetail?.pin || result.order.transactionId,
-          result.order.orderId.toString(),
-          'auto'
-        );
-      } else {
-        await this.sendToManualQueue(transactionId, product, amount, userId);
+        if (result.success && result.order) {
+          await this.completeWithCode(
+            transactionId,
+            result.order.pinDetail?.pin || result.order.transactionId,
+            result.order.orderId.toString(),
+            'auto'
+          );
+          return;
+        }
+      } catch (reloadlyError) {
+        console.error('Reloadly fulfillment failed, sending to manual queue:', reloadlyError);
       }
+
+      await this.sendToManualQueue(transactionId, product, amount, userId);
     } catch (error) {
       console.error('Order processing error:', error);
       await this.sendToManualQueue(transactionId, product, amount, userId);
