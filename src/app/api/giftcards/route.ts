@@ -30,6 +30,9 @@ export async function GET(request: NextRequest) {
     }
 
     const userId = (session.user as { id?: string }).id;
+    if (!userId) {
+      return NextResponse.json({ success: false, error: 'User ID not found' }, { status: 400 });
+    }
     const orders = await giftCardService.getUserOrders(userId);
     return NextResponse.json({ success: true, data: orders });
   } catch (error) {
