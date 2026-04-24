@@ -1,63 +1,9 @@
 import { PrismaClient } from '@prisma/client';
 import { GiftCardCategory, GiftCardProduct, Transaction } from '@/types';
 import { generateReference } from '@/lib/utils';
-import { getExchangeRates } from '@/lib/services/factory';
 import { reloadlyService } from '@/lib/services/reloadly';
 
 const prisma = new PrismaClient();
-
-const DYNAMIC_FEES: Record<string, number> = {
-  'steam': 5, 'playstation': 5, 'xbox': 5, 'nintendo': 5,
-  'amazon': 3, 'walmart': 3, 'target': 3,
-  'netflix': 3, 'youtube': 3,
-  'spotify': 2, 'apple-music': 2,
-  'google-play': 4, 'itunes': 4, 'robux': 4, 'fortnite': 5,
-};
-
-export const ORDER_STATUS = {
-  INITIATED: 'initiated',
-  PROCESSING: 'processing',
-  AUTO_ATTEMPT: 'auto_attempt',
-  COMPLETED: 'completed',
-  MANUAL_QUEUE: 'manual_queue',
-  FAILED: 'failed',
-  REFUNDED: 'refunded',
-  FLAGGED: 'flagged',
-} as const;
-
-export type OrderStatus = typeof ORDER_STATUS[keyof typeof ORDER_STATUS];
-
-export const GIFT_CARD_CATEGORIES: GiftCardCategory[] = [
-  {
-    id: 'entertainment', name: 'Entertainment', icon: 'gamepad-2',
-    products: [
-      { id: 'steam', categoryId: 'entertainment', name: 'Steam Gift Card', brand: 'Steam', minAmount: 5, maxAmount: 100, image: '/cards/steam.png', reloadlyId: 1 },
-      { id: 'playstation', categoryId: 'entertainment', name: 'PlayStation Gift Card', brand: 'PlayStation', minAmount: 10, maxAmount: 100, image: '/cards/playstation.png', reloadlyId: 2 },
-      { id: 'xbox', categoryId: 'entertainment', name: 'Xbox Gift Card', brand: 'Xbox', minAmount: 10, maxAmount: 100, image: '/cards/xbox.png', reloadlyId: 3 },
-    ],
-  },
-  {
-    id: 'shopping', name: 'Shopping', icon: 'shopping-bag',
-    products: [
-      { id: 'amazon', categoryId: 'shopping', name: 'Amazon Gift Card', brand: 'Amazon', minAmount: 10, maxAmount: 500, image: '/cards/amazon.png', reloadlyId: 5 },
-      { id: 'walmart', categoryId: 'shopping', name: 'Walmart Gift Card', brand: 'Walmart', minAmount: 10, maxAmount: 500, image: '/cards/walmart.png', reloadlyId: 6 },
-    ],
-  },
-  {
-    id: 'streaming', name: 'Streaming', icon: 'play',
-    products: [
-      { id: 'netflix', categoryId: 'streaming', name: 'Netflix Gift Card', brand: 'Netflix', minAmount: 10, maxAmount: 100, image: '/cards/netflix.png', reloadlyId: 8 },
-      { id: 'spotify', categoryId: 'streaming', name: 'Spotify Gift Card', brand: 'Spotify', minAmount: 10, maxAmount: 100, image: '/cards/spotify.png', reloadlyId: 9 },
-    ],
-  },
-  {
-    id: 'gaming', name: 'Gaming', icon: 'gamepad',
-    products: [
-      { id: 'robux', categoryId: 'gaming', name: 'Robux', brand: 'Roblox', minAmount: 10, maxAmount: 100, image: '/cards/roblox.png', reloadlyId: 13 },
-      { id: 'google-play', categoryId: 'gaming', name: 'Google Play', brand: 'Google', minAmount: 10, maxAmount: 100, image: '/cards/google.png', reloadlyId: 11 },
-    ],
-  },
-];
 
 const USDT_RATE = 1500;
 const AUTO_THRESHOLD_NGN = 100000;
@@ -70,12 +16,8 @@ export class GiftCardService {
   }
 
   private async convertUsdToNgn(usdAmount: number): Promise<number> {
-    try {
-      const rates = await getExchangeRates();
-      return Math.round(usdAmount * rates.USDT_NGN);
-    } catch {
-      return Math.round(usdAmount * USDT_RATE);
-    }
+    const rates = { USDT_NGN: USDT_RATE };
+    return Math.round(usdAmount * rates.USDT_NGN);
   }
 
   private async checkRiskLevel(userId: string): Promise<{ level: string; canAuto: boolean }> {
