@@ -43,14 +43,7 @@ interface Transaction {
   } | null;
 }
 
-async function fetchCategories(): Promise<GiftCardCategory[]> {
-  const res = await fetch('/api/giftcards');
-  const data = await res.json();
-  if (!data.success) throw new Error(data.error);
-  return data.data;
-}
-
-async function fetchMyOrders(): Promise<Transaction[]> {
+async function fetchCategories(): Promise<{ categories: GiftCardCategory[]; orders?: Transaction[] }> {
   const res = await fetch('/api/giftcards');
   const data = await res.json();
   if (!data.success) throw new Error(data.error);
@@ -119,15 +112,19 @@ export default function GiftCardsPage() {
   const [customAmount, setCustomAmount] = useState('');
   const [priceQuote, setPriceQuote] = useState<any>(null);
 
-  const { data: categories, isLoading } = useQuery({
+  const { data: categoriesData, isLoading } = useQuery({
     queryKey: ['giftcards'],
     queryFn: fetchCategories,
   });
 
-  const { data: orders, isLoading: ordersLoading, refetch: refetchOrders } = useQuery({
+  const categories = categoriesData?.categories || [];
+
+  const { data: ordersData, isLoading: ordersLoading, refetch: refetchOrders } = useQuery({
     queryKey: ['giftcard-orders'],
-    queryFn: fetchMyOrders,
+    queryFn: () => fetchCategories(),
   });
+
+  const orders = ordersData?.orders || [];
 
   const calculateMutation = useMutation({
     mutationFn: ({ productId, amount }: { productId: string; amount: number }) => 
