@@ -32,6 +32,7 @@ const navigation = [
 
 const adminNavigation = [
   { name: 'Users', href: '/dashboard/admin/users', icon: User },
+  { name: 'Gift Cards', href: '/dashboard/admin/giftcards', icon: Gift },
   { name: 'Transactions', href: '/dashboard/admin/transactions', icon: Shield },
   { name: 'Settings', href: '/dashboard/admin/settings', icon: Settings },
 ];
