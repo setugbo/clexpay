@@ -5,6 +5,8 @@ import prisma from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
+// KYC admin routes
+
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
