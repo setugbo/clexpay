@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import prisma from '@/lib/prisma';
-import { createPaymentLink, verifyPayment } from '@/lib/services/flutterwave';
+import { initializeTransaction, verifyTransaction } from '@/lib/services/paystack';
 import { generateReference } from '@/lib/utils';
 import { sendTransactionEmail } from '@/lib/email';
 
@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
     if (verify) {
       console.log('[FUND] Verifying payment:', verify);
       
-      const result = await verifyPayment(verify);
+      const result = await verifyTransaction(verify);
       
       if (!result.success) {
         console.log('[FUND] Payment verification failed:', result.status);
@@ -107,7 +107,7 @@ export async function POST(request: NextRequest) {
               fee: 0,
               status: 'success',
               reference: verify,
-              description: 'Wallet funding via Flutterwave',
+              description: 'Wallet funding via Paystack',
             },
           });
         }
@@ -118,7 +118,7 @@ export async function POST(request: NextRequest) {
             action: 'wallet.funded',
             entityType: 'transaction',
             entityId: verify,
-            details: { amount: result.amount, reference: verify, source: 'flutterwave' },
+            details: { amount: result.amount, reference: verify, source: 'paystack' },
           },
         });
       });
@@ -171,28 +171,33 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    const { paymentUrl, error: paymentError } = await createPaymentLink(userId, user.email, amount, reference);
+    try {
+      const { authorizationUrl } = await initializeTransaction(
+        user.email,
+        amount,
+        reference,
+        { userId, type: 'wallet_fund' }
+      );
 
-    if (!paymentUrl) {
-      console.error('[FUND] Failed to create payment link:', paymentError);
+      console.log('[FUND] Payment link created:', reference, 'URL:', authorizationUrl);
+
+      return NextResponse.json({
+        success: true,
+        paymentUrl: authorizationUrl,
+        reference,
+        message: 'Payment link created. Complete payment to fund wallet.',
+      });
+    } catch (error) {
+      console.error('[FUND] Failed to create payment link:', error);
       await prisma.transaction.update({
         where: { reference },
         data: { status: 'failed', description: 'Failed to create payment link' },
       });
       return NextResponse.json({
         success: false,
-        error: paymentError || 'Failed to create payment. Please try again.',
+        error: error instanceof Error ? error.message : 'Failed to create payment. Please try again.',
       }, { status: 500 });
     }
-
-    console.log('[FUND] Payment link created:', reference, 'URL:', paymentUrl);
-
-    return NextResponse.json({
-      success: true,
-      paymentUrl,
-      reference,
-      message: 'Payment link created. Complete payment to fund wallet.',
-    });
   } catch (error) {
     console.error('[FUND] Error:', error);
     return NextResponse.json(
@@ -217,7 +222,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Reference required' }, { status: 400 });
     }
 
-    const result = await verifyPayment(reference);
+    const result = await verifyTransaction(reference);
     
     return NextResponse.json({
       success: result.success,

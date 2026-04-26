@@ -1,7 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import { LiveWalletService } from './implementations/live/live.wallet.service';
 import { TatumCryptoService } from './implementations/live/tatum.crypto.service';
-import { FlutterwaveBillService } from './implementations/live/flutterwave.bill.service';
+import { VtpassBillService } from './implementations/live/vtpass.bill.service';
 import { GiftCardService } from './implementations/live/gift.card.service';
 
 const prisma = new PrismaClient();
@@ -16,7 +16,7 @@ export async function cryptoServiceFactory() {
 }
 
 export async function billServiceFactory() {
-  return new FlutterwaveBillService();
+  return new VtpassBillService();
 }
 
 export async function giftCardServiceFactory() {

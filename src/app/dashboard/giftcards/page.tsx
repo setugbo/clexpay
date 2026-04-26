@@ -32,16 +32,14 @@ interface Transaction {
   amount: number;
   status: string;
   createdAt: string;
-  metadata: {
-    productName?: string;
-    brand?: string;
-    usdAmount?: number;
-    fee?: number;
-    orderStatus?: string;
-    deliveryMode?: string;
-    cardCode?: string;
-  } | null;
+  metadata: Record<string, unknown> | null;
 }
+
+const getMetaField = (meta: Record<string, unknown> | null, field: string, fallback = ''): string => {
+  if (!meta) return fallback;
+  const value = meta[field];
+  return value !== undefined ? String(value) : fallback;
+};
 
 async function fetchCategories(): Promise<{ categories: GiftCardCategory[]; orders?: Transaction[] }> {
   const res = await fetch('/api/giftcards');
@@ -226,15 +224,16 @@ export default function GiftCardsPage() {
             ) : (
               <div className="space-y-3">
                 {orders?.map((order) => {
-                  const meta = order.metadata || {};
-                  const status = STATUS_LABELS[meta.orderStatus as string] || { label: order.status, color: 'bg-gray-100' };
+                  const meta = order.metadata;
+                  const orderStatus = getMetaField(meta, 'orderStatus');
+                  const status = STATUS_LABELS[orderStatus] || { label: order.status, color: 'bg-gray-100' };
                   
                   return (
                     <div key={order.id} className="p-4 rounded-xl border bg-white">
                       <div className="flex items-start justify-between">
                         <div>
-                          <p className="font-semibold text-slate-900">{meta.productName || 'Gift Card'}</p>
-                          <p className="text-sm text-slate-500">{meta.brand} - ${meta.usdAmount}</p>
+                          <p className="font-semibold text-slate-900">{getMetaField(meta, 'productName', 'Gift Card')}</p>
+                          <p className="text-sm text-slate-500">{getMetaField(meta, 'brand')} - ${getMetaField(meta, 'usdAmount')}</p>
                           <p className="text-xs text-slate-400 mt-1">Ref: {order.reference}</p>
                         </div>
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${status.color}`}>
@@ -242,10 +241,10 @@ export default function GiftCardsPage() {
                         </span>
                       </div>
                       
-                      {meta.cardCode && (
+                      {getMetaField(meta, 'cardCode') && (
                         <div className="mt-3 p-3 bg-emerald-50 rounded-lg">
                           <p className="text-xs text-emerald-600 mb-1">Gift Card Code</p>
-                          <p className="font-mono font-bold text-emerald-700">{meta.cardCode}</p>
+                          <p className="font-mono font-bold text-emerald-700">{getMetaField(meta, 'cardCode')}</p>
                         </div>
                       )}
                     </div>

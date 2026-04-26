@@ -47,6 +47,12 @@ const STATUS_COLORS: Record<string, string> = {
   flagged: 'bg-red-100 text-red-700',
 };
 
+const getMetaField = (meta: Record<string, unknown> | null, field: string, fallback = ''): string => {
+  if (!meta) return fallback;
+  const value = meta[field];
+  return value !== undefined ? String(value) : fallback;
+};
+
 async function fetchGiftCards(view?: string): Promise<GiftCardsResponse> {
   const params = view ? `?view=${view}` : '';
   const res = await fetch(`/api/admin/giftcards${params}`);
@@ -154,8 +160,8 @@ export default function AdminGiftCardsPage() {
   };
 
   const getOrderStatus = (order: GiftCardOrder): string => {
-    const meta = order.metadata as Record<string, unknown> | null;
-    return (meta?.orderStatus as string) || order.status;
+    const meta = order.metadata;
+    return getMetaField(meta, 'orderStatus', order.status);
   };
 
   const formatAmount = (amount: number) => {
@@ -326,7 +332,7 @@ export default function AdminGiftCardsPage() {
                         </td>
                         <td className="py-3 px-4">
                           <p className="text-sm font-medium text-slate-900">
-                            {(meta?.productName as string) || 'Gift Card'}
+                            {getMetaField(meta, 'productName', 'Gift Card')}
                           </p>
                           <p className="text-xs text-slate-500">
                             ${String(meta?.usdAmount ?? '')} - {String(meta?.brand ?? '')}
