@@ -9,6 +9,9 @@ export interface User {
   status: 'active' | 'suspended' | 'deleted';
   role: 'user' | 'admin' | 'super_admin';
   emailVerified: boolean;
+  kycStatus: 'not_started' | 'pending' | 'verified' | 'rejected';
+  bvnVerifiedAt: Date | null;
+  idVerifiedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }

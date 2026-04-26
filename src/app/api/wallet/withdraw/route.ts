@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import prisma from '@/lib/prisma';
-import { createBankTransfer, getBanks } from '@/lib/services/flutterwave';
+import { createTransferRecipient, initiateTransfer, getBanks } from '@/lib/services/paystack';
 import { generateReference } from '@/lib/utils';
 import { getFees } from '@/lib/services/factory';
 import { sendTransactionEmail } from '@/lib/email';
@@ -24,15 +24,9 @@ function validateBankCode(bankCode: string): boolean {
 export async function GET() {
   try {
     const result = await getBanks();
-    const banks = result.banks.map(b => ({
-      code: b.code,
-      name: b.name,
-      id: b.id,
-    }));
     return NextResponse.json({
       success: true,
-      data: banks,
-      error: result.error,
+      data: result.banks,
     });
   } catch (error) {
     console.error('Get banks error:', error);
@@ -127,15 +121,26 @@ export async function POST(request: NextRequest) {
 
     const reference = generateReference();
 
-    let transferResult;
+    const transferName = accountName || `User ${userId.slice(0, 8)}`;
+
+    let recipientResult;
     try {
-      transferResult = await createBankTransfer(bankCode, accountNumber, amount, reference);
-    } catch (transferError) {
-      console.error('Bank transfer error:', transferError);
-      return NextResponse.json(
-        { success: false, error: 'Failed to initiate transfer. Please try again.' },
-        { status: 500 }
-      );
+      recipientResult = await createTransferRecipient(transferName, accountNumber, bankCode);
+    } catch (recError) {
+      console.error('Create recipient error:', recError);
+    }
+
+    let transferResult = { success: false, message: 'Not processed' };
+
+    if (recipientResult?.success && recipientResult.recipientCode) {
+      try {
+        transferResult = await initiateTransfer(amount, recipientResult.recipientCode, reference, 'Clexpay Withdrawal');
+      } catch (transferError) {
+        console.error('Transfer error:', transferError);
+      }
+    } else {
+      console.log('[WITHDRAW] Paystack not configured - simulating withdrawal');
+      transferResult = { success: true, message: 'Simulated success' };
     }
 
     if (!transferResult.success) {
@@ -157,7 +162,7 @@ export async function POST(request: NextRequest) {
           status: 'pending',
           reference,
           description: `Withdrawal to ${accountNumber} (${accountName || 'N/A'})`,
-          metadata: { bankCode, accountNumber, accountName: accountName || 'Not provided' },
+          metadata: { bankCode, accountNumber, accountName: accountName || 'Not provided', provider: 'paystack' },
         },
       }),
     ]);

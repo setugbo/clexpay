@@ -41,12 +41,22 @@ model User {
   passwordHash  String    @map("password_hash")
   firstName     String?   @map("first_name")
   lastName      String?   @map("last_name")
-  phone         String?
+  phone        String?
   status        UserStatus @default(active)
-  role          UserRole   @default(user)
+  role        UserRole   @default(user)
   emailVerified Boolean   @default(false) @map("email_verified")
   otpCode       String?   @map("otp_code")
   otpExpiresAt  DateTime? @map("otp_expires_at")
+  
+  kycStatus    KycStatus  @default(not_started) @map("kyc_status")
+  bvn         String?   @map("bvn")
+  bvnVerifiedAt DateTime? @map("bvn_verified_at")
+  idType      String?   @map("id_type")
+  idNumber    String?   @map("id_number")
+  idVerifiedAt DateTime? @map("id_verified_at")
+  address     String?
+  dob        String?
+  
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
 
@@ -55,6 +65,13 @@ model User {
   activityLogs  ActivityLog[]
 
   @@map("users")
+}
+
+enum KycStatus {
+  not_started
+  pending
+  verified
+  rejected
 }
 
 model Wallet {

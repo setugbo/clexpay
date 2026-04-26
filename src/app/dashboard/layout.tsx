@@ -31,6 +31,7 @@ const navigation = [
 ];
 
 const adminNavigation = [
+  { name: 'Dashboard', href: '/dashboard/admin', icon: LayoutDashboard },
   { name: 'Users', href: '/dashboard/admin/users', icon: User },
   { name: 'Gift Cards', href: '/dashboard/admin/giftcards', icon: Gift },
   { name: 'Transactions', href: '/dashboard/admin/transactions', icon: Shield },
