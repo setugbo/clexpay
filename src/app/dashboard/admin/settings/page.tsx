@@ -301,8 +301,8 @@ export default function AdminSettingsPage() {
           <div className="grid gap-4 md:grid-cols-1">
             <div className="flex items-center justify-between p-4 rounded-lg border">
               <div>
-                <p className="font-medium">Flutterwave</p>
-                <p className="text-sm text-slate-500">Bill payments and airtime</p>
+                <p className="font-medium">Paystack</p>
+                <p className="text-sm text-slate-500">Wallet funding & withdrawals</p>
               </div>
               <Button
                 variant="outline"
