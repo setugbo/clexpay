@@ -84,14 +84,20 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    await prisma.wallet.createMany({
-      data: [
-        { userId: user.id, currency: 'NGN', isCrypto: false, balance: 0 },
-        { userId: user.id, currency: 'BTC', isCrypto: true, balance: 0 },
-        { userId: user.id, currency: 'ETH', isCrypto: true, balance: 0 },
-        { userId: user.id, currency: 'USDT', isCrypto: true, balance: 0 },
-      ],
-    });
+    const wallets = await prisma.$transaction([
+      prisma.wallet.create({
+        data: { userId: user.id, currency: 'NGN', isCrypto: false, balance: 0 },
+      }),
+      prisma.wallet.create({
+        data: { userId: user.id, currency: 'BTC', isCrypto: true, balance: 0 },
+      }),
+      prisma.wallet.create({
+        data: { userId: user.id, currency: 'ETH', isCrypto: true, balance: 0 },
+      }),
+      prisma.wallet.create({
+        data: { userId: user.id, currency: 'USDT', isCrypto: true, balance: 0 },
+      }),
+    ]);
 
     const otpSent = await sendOTPEmail(email, otpCode);
 
