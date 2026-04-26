@@ -22,7 +22,8 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '20');
 
-    const where = status ? { kycStatus: { equals: status as 'not_started' | 'pending' | 'verified' | 'rejected' } } : {};
+    const where: Record<string, unknown> = {};
+    if (status) where.kycStatus = status;
 
     const [users, total] = await Promise.all([
       prisma.user.findMany({
