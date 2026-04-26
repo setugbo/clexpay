@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import prisma from '@/lib/prisma';
-import { isFlutterwaveConfigured } from '@/lib/services/flutterwave';
+import { isPaystackConfigured } from '@/lib/services/paystack';
 import { isTatumConfigured } from '@/lib/services/implementations/live/tatum.crypto.service';
+import { isVtpassConfigured } from '@/lib/services/vtpass';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,11 +39,18 @@ export async function GET(request: NextRequest) {
 
     const configs: ApiConfig[] = [
       {
-        name: 'Flutterwave',
-        configured: isFlutterwaveConfigured(),
-        envVar: 'FLUTTERWAVE_SECRET_KEY',
-        description: 'Payments, bills, and bank transfers for Nigerian transactions',
-        docsUrl: 'https://developer.flutterwave.com/docs',
+        name: 'Paystack',
+        configured: isPaystackConfigured(),
+        envVar: 'PAYSTACK_SECRET_KEY',
+        description: 'Wallet funding and bank withdrawals for Nigerian transactions',
+        docsUrl: 'https://paystack.com/docs',
+      },
+      {
+        name: 'VTPass',
+        configured: isVtpassConfigured(),
+        envVar: 'VTPASS_API_KEY',
+        description: 'Bill payments - airtime, data, electricity, TV subscriptions',
+        docsUrl: 'https://vtpass.com/documentation',
       },
       {
         name: 'Tatum',
@@ -87,37 +95,37 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    if (isFlutterwaveConfigured()) {
-      const fwStart = Date.now();
+    if (isPaystackConfigured()) {
+      const psStart = Date.now();
       try {
-        const response = await fetch('https://api.flutterwave.com/v3/banks/NG', {
+        const response = await fetch('https://api.paystack.co/bank', {
           method: 'GET',
           headers: new Headers({
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${process.env.FLUTTERWAVE_SECRET_KEY}`,
+            Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
           }),
         });
         tests.push({
-          service: 'Flutterwave',
+          service: 'Paystack',
           status: response.ok ? 'tested' : 'error',
-          latency: Date.now() - fwStart,
+          latency: Date.now() - psStart,
           message: response.ok ? 'API responding' : 'API error',
           error: response.ok ? undefined : `HTTP ${response.status}`,
         });
       } catch (error) {
         tests.push({
-          service: 'Flutterwave',
+          service: 'Paystack',
           status: 'error',
-          latency: Date.now() - fwStart,
+          latency: Date.now() - psStart,
           message: 'Connection failed',
-          error: error instanceof Error ? error.message : 'Unknown error',
+          error: error instanceof Error ? error.message : 'Network error',
         });
       }
     } else {
       tests.push({
-        service: 'Flutterwave',
+        service: 'Paystack',
         status: 'not_configured',
-        message: 'FLUTTERWAVE_SECRET_KEY not set',
+        message: 'PAYSTACK_SECRET_KEY not set',
       });
     }
 
@@ -144,7 +152,7 @@ export async function GET(request: NextRequest) {
           status: 'error',
           latency: Date.now() - tatumStart,
           message: 'Connection failed',
-          error: error instanceof Error ? error.message : 'Unknown error',
+          error: error instanceof Error ? error.message : 'Network error',
         });
       }
     } else {
@@ -152,6 +160,20 @@ export async function GET(request: NextRequest) {
         service: 'Tatum',
         status: 'not_configured',
         message: 'TATUM_API_KEY not set',
+      });
+    }
+
+    if (isVtpassConfigured()) {
+      tests.push({
+        service: 'VTPass',
+        status: 'configured',
+        message: 'VTPass API configured',
+      });
+    } else {
+      tests.push({
+        service: 'VTPass',
+        status: 'not_configured',
+        message: 'VTPASS_API_KEY not set',
       });
     }
 
