@@ -56,7 +56,8 @@ export async function buyBill(
   serviceId: string,
   phone: string,
   variationCode: string,
-  reference: string
+  reference: string,
+  amount: number
 ): Promise<{
   success: boolean;
   message: string;
@@ -83,7 +84,7 @@ export async function buyBill(
         serviceID: serviceId,
         variation_code: variationCode,
         billers_code: phone,
-        amount: 0,
+        amount: amount,
         reference,
       }),
     });

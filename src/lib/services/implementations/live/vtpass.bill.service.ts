@@ -147,7 +147,8 @@ export class VtpassBillService {
           serviceId,
           customerId,
           variationCode,
-          reference
+          reference,
+          billAmount
         );
 
         console.log('[BILLS] VTPass response:', billResult);

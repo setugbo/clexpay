@@ -14,7 +14,7 @@ interface HealthStatus {
 export async function GET() {
   try {
     const session = await getServerSession(authOptions);
-    
+
     if (!session?.user) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
@@ -77,8 +77,9 @@ async function checkDatabase(): Promise<HealthStatus> {
 
 async function checkExternalServices(): Promise<Record<string, HealthStatus>> {
   const services: Record<string, Promise<HealthStatus>> = {
-    flutterwave: checkUrl('https://api.flutterwave.com/v3/ping', 'FLUTTERWAVE_SECRET_KEY'),
-    tatum: checkUrl('https://api.tatum.io/v3/health', 'TATUM_API_KEY'),
+    paystack: checkUrl('https://api.paystack.co/bank', 'PAYSTACK_SECRET_KEY'),
+    vtpass: checkUrl('https://vtpass.com/api/services', 'VTPASS_API_KEY'),
+    tatum: checkUrl('https://api.tatum.io/v3/rates', 'TATUM_API_KEY'),
     email: checkEmailService(),
   };
 
@@ -118,17 +119,12 @@ async function checkEmailService(): Promise<HealthStatus> {
 
   const start = Date.now();
   try {
-    const response = await fetch(`https://${process.env.EMAIL_HOST}`, {
-      method: 'HEAD',
-    });
+    const { transporter } = await import('@/lib/email');
+    await transporter.verify();
     const latency = Date.now() - start;
-
-    if (response.ok || response.status === 301 || response.status === 302) {
-      return { status: 'healthy', latency, message: 'Email service configured' };
-    }
-    return { status: 'degraded', latency, message: 'Email service may have issues' };
+    return { status: 'healthy', latency, message: 'Email service configured and verified' };
   } catch {
-    return { status: 'unhealthy', latency: Date.now() - start, message: 'Email service unreachable' };
+    return { status: 'unhealthy', latency: Date.now() - start, message: 'Email verification failed' };
   }
 }
 
@@ -137,10 +133,10 @@ function calculateOverallStatus(
   external: Record<string, HealthStatus>
 ): 'healthy' | 'degraded' | 'unhealthy' {
   if (database.status === 'unhealthy') return 'unhealthy';
-  
+
   const externalStatuses = Object.values(external).map(s => s.status);
-  if (externalStatuses.includes('unhealthy')) return 'degraded';
+  if (externalStatuses.includes('unhealthy')) return 'unhealthy';
   if (externalStatuses.includes('degraded')) return 'degraded';
-  
+
   return 'healthy';
 }

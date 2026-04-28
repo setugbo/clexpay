@@ -369,7 +369,7 @@ function WalletContent() {
                 {modal === 'fund' ? 'Fund Wallet' : modal === 'withdraw' ? 'Withdraw Funds' : 'Transfer to User'}
               </CardTitle>
               <CardDescription>
-                {modal === 'fund' && 'Fund via Flutterwave payment (Min: NGN 100)'}
+                {modal === 'fund' && 'Fund via Paystack payment (Min: NGN 100)'}
                 {modal === 'withdraw' && 'Withdraw to Nigerian bank account (Min: NGN 500)'}
                 {modal === 'transfer' && 'Transfer to another Clexpay user'}
               </CardDescription>

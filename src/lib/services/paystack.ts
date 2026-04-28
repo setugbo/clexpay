@@ -1,4 +1,4 @@
-const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY;
+export const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY;
 const PAYSTACK_PUBLIC_KEY = process.env.PAYSTACK_PUBLIC_KEY;
 const PAYSTACK_BASE_URL = process.env.PAYSTACK_URL || 'https://api.paystack.co';
 

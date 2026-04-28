@@ -222,9 +222,13 @@ export default function CryptoPage() {
                     </span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-slate-500">Fee (0.5%)</span>
+                    <span className="text-slate-500">Fee ({tab === 'swap' ? '0.3%' : '0.5%'})</span>
                     <span className="font-medium">
-                      {formatCurrency((parseFloat(amount) || 0) * 0.005)} {fromCurrency}
+                      {formatCurrency(
+                        tab === 'swap' 
+                          ? (parseFloat(amount) || 0) * 0.003 
+                          : (parseFloat(amount) || 0) * 0.005
+                      )} {fromCurrency}
                     </span>
                   </div>
                 </div>

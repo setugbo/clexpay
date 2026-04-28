@@ -93,6 +93,7 @@ export async function POST(request: NextRequest) {
       where: {
         userId,
         type: 'withdrawal',
+        status: 'success',
         createdAt: { gte: today, lt: tomorrow },
       },
       _sum: { amount: true },
@@ -120,79 +121,122 @@ export async function POST(request: NextRequest) {
     }
 
     const reference = generateReference();
-
     const transferName = accountName || `User ${userId.slice(0, 8)}`;
 
-    let recipientResult;
+    let recipientCode: string | null = null;
     try {
-      recipientResult = await createTransferRecipient(transferName, accountNumber, bankCode);
+      const recipientResult = await createTransferRecipient(transferName, accountNumber, bankCode);
+      if (recipientResult?.success && recipientResult.recipientCode) {
+        recipientCode = recipientResult.recipientCode;
+      }
     } catch (recError) {
       console.error('Create recipient error:', recError);
     }
 
-    let transferResult = { success: false, message: 'Not processed' };
+    if (!recipientCode) {
+      return NextResponse.json({ success: false, error: 'Failed to create transfer recipient' }, { status: 400 });
+    }
 
-    if (recipientResult?.success && recipientResult.recipientCode) {
-      try {
-        transferResult = await initiateTransfer(amount, recipientResult.recipientCode, reference, 'Clexpay Withdrawal');
-      } catch (transferError) {
-        console.error('Transfer error:', transferError);
+    // First, debit the wallet (within a transaction for atomicity)
+    let transaction;
+    try {
+      transaction = await prisma.$transaction(async (tx) => {
+        const updatedWallet = await tx.wallet.update({
+          where: { id: wallet.id },
+          data: { balance: { decrement: amount } },
+        });
+
+        if (Number(updatedWallet.balance) < 0) {
+          throw new Error('Insufficient balance after lock');
+        }
+
+        return tx.transaction.create({
+          data: {
+            userId,
+            type: 'withdrawal',
+            currency: 'NGN',
+            amount,
+            fee: 0,
+            status: 'pending',
+            reference,
+            description: `Withdrawal to ${accountNumber} (${accountName || 'N/A'})`,
+            metadata: { bankCode, accountNumber, accountName: accountName || 'Not provided', provider: 'paystack' },
+          },
+        });
+      });
+    } catch (error) {
+      return NextResponse.json({ success: false, error: 'Insufficient balance' }, { status: 400 });
+    }
+
+    // Now initiate the transfer
+    try {
+      const transferResult = await initiateTransfer(amount, recipientCode, reference, 'Clexpay Withdrawal');
+
+      if (!transferResult.success) {
+        // Refund the wallet
+        await prisma.$transaction([
+          prisma.wallet.update({
+            where: { id: wallet.id },
+            data: { balance: { increment: amount } },
+          }),
+          prisma.transaction.update({
+            where: { id: transaction.id },
+            data: { status: 'failed', description: `Withdrawal failed: ${transferResult.message}` },
+          }),
+        ]);
+
+        return NextResponse.json({ success: false, error: transferResult.message }, { status: 400 });
       }
-    } else {
-      console.log('[WITHDRAW] Paystack not configured - simulating withdrawal');
-      transferResult = { success: true, message: 'Simulated success' };
-    }
 
-    if (!transferResult.success) {
-      return NextResponse.json({ success: false, error: transferResult.message }, { status: 400 });
-    }
+      // Update transaction to success
+      await prisma.transaction.update({
+        where: { id: transaction.id },
+        data: { status: 'success' },
+      });
 
-    await prisma.$transaction([
-      prisma.wallet.update({
-        where: { id: wallet.id },
-        data: { balance: { decrement: amount } },
-      }),
-      prisma.transaction.create({
+      await prisma.activityLog.create({
         data: {
           userId,
-          type: 'withdrawal',
-          currency: 'NGN',
-          amount,
-          fee: 0,
-          status: 'pending',
-          reference,
-          description: `Withdrawal to ${accountNumber} (${accountName || 'N/A'})`,
-          metadata: { bankCode, accountNumber, accountName: accountName || 'Not provided', provider: 'paystack' },
+          action: 'withdrawal.completed',
+          entityType: 'transaction',
+          entityId: reference,
+          details: { amount, bankCode, accountNumber: accountNumber.slice(-4) + '****', reference },
         },
-      }),
-    ]);
-
-    await prisma.activityLog.create({
-      data: {
-        userId,
-        action: 'withdrawal.initiated',
-        entityType: 'transaction',
-        entityId: reference,
-        details: { amount, bankCode, accountNumber: accountNumber.slice(-4) + '****', reference },
-      },
-    });
-
-    const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (user?.email) {
-      await sendTransactionEmail(user.email, {
-        type: 'Withdrawal Initiated',
-        amount: amount.toLocaleString(),
-        currency: 'NGN',
-        reference,
-        status: 'pending',
       });
-    }
 
-    return NextResponse.json({
-      success: true,
-      message: 'Withdrawal initiated successfully',
-      data: { reference, amount, status: 'pending' },
-    });
+      const user = await prisma.user.findUnique({ where: { id: userId } });
+      if (user?.email) {
+        await sendTransactionEmail(user.email, {
+          type: 'Withdrawal Completed',
+          amount: amount.toLocaleString(),
+          currency: 'NGN',
+          reference,
+          status: 'success',
+        });
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: 'Withdrawal completed successfully',
+        data: { reference, amount, status: 'success' },
+      });
+    } catch (transferError) {
+      console.error('Transfer error:', transferError);
+
+      // Refund the wallet
+      await prisma.$transaction([
+        prisma.wallet.update({
+          where: { id: wallet.id },
+          data: { balance: { increment: amount } },
+        }),
+        prisma.transaction.update({
+          where: { id: transaction.id },
+          data: { status: 'failed', description: 'Transfer failed' },
+        }),
+      ]);
+
+      return NextResponse.json({ success: false, error: 'Transfer failed. Wallet refunded.' }, { status: 500 });
+    }
   } catch (error) {
     console.error('Withdrawal error:', error);
     return NextResponse.json({ success: false, error: 'Withdrawal failed. Please try again.' }, { status: 500 });

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import prisma from '@/lib/prisma';
-import transporter from '@/lib/email';
+import { isPaystackConfigured } from '@/lib/services/paystack';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,15 +33,15 @@ async function testDatabase(): Promise<TestResult> {
   }
 }
 
-async function testFlutterwave(): Promise<TestResult> {
-  const apiKey = process.env.FLUTTERWAVE_SECRET_KEY;
+async function testPaystack(): Promise<TestResult> {
+  const apiKey = process.env.PAYSTACK_SECRET_KEY;
   if (!apiKey) {
-    return { success: false, message: 'Flutterwave API key not configured', error: 'FLUTTERWAVE_SECRET_KEY missing' };
+    return { success: false, message: 'Paystack API key not configured', error: 'PAYSTACK_SECRET_KEY missing' };
   }
 
   const start = Date.now();
   try {
-    const response = await fetch('https://api.flutterwave.com/v3/banks/NG', {
+    const response = await fetch('https://api.paystack.co/bank', {
       method: 'GET',
       headers: {
         Authorization: `Bearer ${apiKey}`,
@@ -52,21 +52,59 @@ async function testFlutterwave(): Promise<TestResult> {
     const latency = Date.now() - start;
 
     if (response.ok) {
-      return { success: true, latency, message: 'Flutterwave API responding normally' };
+      return { success: true, latency, message: 'Paystack API responding normally' };
     }
 
     const errorData = await response.json().catch(() => ({}));
     return {
       success: false,
       latency,
-      message: `Flutterwave API error: ${response.status}`,
-      error: errorData.message || `HTTP ${response.status}`,
+      message: `Paystack API error: ${response.status}`,
+      error: (errorData as { message?: string }).message || `HTTP ${response.status}`,
     };
   } catch (error) {
     return {
       success: false,
       latency: Date.now() - start,
-      message: 'Flutterwave API unreachable',
+      message: 'Paystack API unreachable',
+      error: error instanceof Error ? error.message : 'Network error',
+    };
+  }
+}
+
+async function testVtpass(): Promise<TestResult> {
+  const apiKey = process.env.VTPASS_API_KEY;
+  if (!apiKey) {
+    return { success: false, message: 'VTPass API key not configured', error: 'VTPASS_API_KEY missing' };
+  }
+
+  const start = Date.now();
+  try {
+    const response = await fetch('https://vtpass.com/api/services', {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    const latency = Date.now() - start;
+
+    if (response.ok) {
+      return { success: true, latency, message: 'VTPass API responding normally' };
+    }
+
+    return {
+      success: false,
+      latency,
+      message: `VTPass API error: ${response.status}`,
+      error: `HTTP ${response.status}`,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      latency: Date.now() - start,
+      message: 'VTPass API unreachable',
       error: error instanceof Error ? error.message : 'Network error',
     };
   }
@@ -99,7 +137,7 @@ async function testTatum(): Promise<TestResult> {
       success: false,
       latency,
       message: `Tatum API error: ${response.status}`,
-      error: errorData.message || `HTTP ${response.status}`,
+      error: (errorData as { message?: string }).message || `HTTP ${response.status}`,
     };
   } catch (error) {
     return {
@@ -117,21 +155,20 @@ async function testEmail(): Promise<TestResult> {
     return { success: false, message: 'Email not configured', error: 'EMAIL_HOST or EMAIL_USER missing' };
   }
 
+  const start = Date.now();
   try {
-    transporter.verify().then(() => {
-      return { success: true, message: 'Email service configured and ready' };
-    }).catch(() => {
-      return { success: false, message: 'Email service verification failed' };
-    });
+    const { transporter } = await import('@/lib/email');
+    await transporter.verify();
+    const latency = Date.now() - start;
+    return { success: true, latency, message: 'Email service configured and verified' };
   } catch (error) {
     return {
       success: false,
-      message: 'Email service error',
+      latency: Date.now() - start,
+      message: 'Email service verification failed',
       error: error instanceof Error ? error.message : 'Unknown error',
     };
   }
-
-  return { success: true, message: 'Email service configured' };
 }
 
 async function testGiftCard(): Promise<TestResult> {
@@ -190,8 +227,11 @@ export async function POST(request: NextRequest) {
         case 'neon':
           results.neon = await testNeonDatabase();
           break;
-        case 'flutterwave':
-          results.flutterwave = await testFlutterwave();
+        case 'paystack':
+          results.paystack = await testPaystack();
+          break;
+        case 'vtpass':
+          results.vtpass = await testVtpass();
           break;
         case 'tatum':
           results.tatum = await testTatum();
@@ -209,10 +249,11 @@ export async function POST(request: NextRequest) {
           );
       }
     } else {
-      const [database, neon, flutterwave, tatum, email, giftcards] = await Promise.all([
+      const [database, neon, paystack, vtpass, tatum, email, giftcards] = await Promise.all([
         testDatabase(),
         testNeonDatabase(),
-        testFlutterwave(),
+        testPaystack(),
+        testVtpass(),
         testTatum(),
         testEmail(),
         testGiftCard(),
@@ -220,14 +261,15 @@ export async function POST(request: NextRequest) {
 
       results.database = database;
       results.neon = neon;
-      results.flutterwave = flutterwave;
+      results.paystack = paystack;
+      results.vtpass = vtpass;
       results.tatum = tatum;
       results.email = email;
       results.giftcards = giftcards;
     }
 
     const allSuccess = Object.values(results).every((r) => r.success);
-    const criticalFailed = ['database', 'neon', 'flutterwave'].some((k) => results[k]?.success === false);
+    const criticalFailed = ['database', 'neon', 'paystack'].some((k) => results[k]?.success === false);
 
     const summary = Object.entries(results).map(([key, result]) => ({
       service: key,

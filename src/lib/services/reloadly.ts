@@ -57,8 +57,11 @@ export class ReloadlyService {
   private tokenExpiry: number = 0;
 
   constructor() {
-    this.clientId = process.env.RELOADLY_CLIENT_ID || 'xtNP4b7OcRkh0QWF7Yobwzr6YLICj6sm';
-    this.clientSecret = process.env.RELOADLY_CLIENT_SECRET || 'zYFBUoLZKX-tW96S0F8tjcQpD8w4JX-4RJosiSPI0anOufaCiBDO8oEVhTWjOhd';
+    this.clientId = process.env.RELOADLY_CLIENT_ID || '';
+    this.clientSecret = process.env.RELOADLY_CLIENT_SECRET || '';
+    if (!this.clientId || !this.clientSecret) {
+      console.warn('[RELOADLY] Client ID or Secret not configured');
+    }
   }
 
   async authenticate(): Promise<string> {

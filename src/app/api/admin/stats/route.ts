@@ -74,7 +74,7 @@ export async function GET(request: Request) {
         _count: true,
       }),
       prisma.transaction.aggregate({
-        where: { createdAt: { gte: dateRange.start } },
+        where: { createdAt: { gte: dateRange.start }, status: 'success' },
         _count: true,
         _sum: { amount: true, fee: true },
       }),
@@ -108,7 +108,7 @@ export async function GET(request: Request) {
 
     const volumeByType = await prisma.transaction.groupBy({
       by: ['type'],
-      where: { createdAt: { gte: dateRange.start } },
+      where: { createdAt: { gte: dateRange.start }, status: 'success' },
       _sum: { amount: true },
       _count: true,
     });
@@ -161,7 +161,7 @@ async function getDailyStats(dateRange: DateRange) {
 
     const [dayTransactions, dayUsers] = await Promise.all([
       prisma.transaction.aggregate({
-        where: { createdAt: { gte: dayStart, lte: dayEnd } },
+        where: { createdAt: { gte: dayStart, lte: dayEnd }, status: 'success' },
         _sum: { amount: true },
         _count: true,
       }),
