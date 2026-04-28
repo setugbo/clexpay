@@ -182,7 +182,7 @@ export default function AdminGiftCardsPage() {
       </div>
 
       {data?.stats && (
-        <div className="grid gap-4 md:grid-cols-6">
+        <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-6">
           <Card>
             <CardContent className="p-4">
               <div className="flex items-center gap-3">

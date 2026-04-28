@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Shield, CheckCircle, XCircle, RefreshCw, Key, Percent, TrendingUp } from 'lucide-react';
+import { Loader2, Shield, CheckCircle, XCircle, RefreshCw, Key, Percent, TrendingUp, AlertCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,10 +18,14 @@ interface SettingsData {
 }
 
 interface SystemStatus {
-  flutterwave: boolean;
-  tatum: boolean;
-  database: boolean;
-  email: boolean;
+  status: string;
+  services: {
+    paystack?: { status: string; message: string };
+    vtpass?: { status: string; message: string };
+    tatum?: { status: string; message: string };
+    email?: { status: string; message: string };
+    database?: { status: string; message: string };
+  };
 }
 
 async function fetchSettings(): Promise<SettingsData> {
@@ -34,7 +38,7 @@ async function fetchSettings(): Promise<SettingsData> {
 async function fetchSystemStatus(): Promise<SystemStatus> {
   const res = await fetch('/api/admin/system-status');
   const data = await res.json();
-  return data;
+  return data.data || data;
 }
 
 async function updateSetting(key: string, value: unknown) {
@@ -62,8 +66,8 @@ export default function AdminSettingsPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [rates, setRates] = useState({ BTC_NGN: '', ETH_NGN: '', USDT_NGN: '' });
-  const [fees, setFees] = useState({ cryptoBuy: '', cryptoSell: '', transfer: '', bill: '' });
-  const [apiKeys, setApiKeys] = useState({ flutterwave: '', tatum: '', giftcards: '' });
+  const [fees, setFees] = useState({ cryptoBuy: '', cryptoSell: '', swap: '', bill: '', transfer: '', giftcard: '' });
+  const [apiKeys, setApiKeys] = useState({ PAYSTACK_SECRET_KEY: '', VTPASS_API_KEY: '', TATUM_API_KEY: '', RELOADLY_CLIENT_ID: '', RELOADLY_CLIENT_SECRET: '' });
   const [testingService, setTestingService] = useState<string | null>(null);
   const [testResults, setTestResults] = useState<Record<string, { success: boolean; message: string }>>({});
 
@@ -73,8 +77,41 @@ export default function AdminSettingsPage() {
     refetchInterval: 60000,
   });
 
+  const { data: systemStatus, isLoading: statusLoading, refetch: refetchStatus } = useQuery({
+    queryKey: ['system-status'],
+    queryFn: fetchSystemStatus,
+    refetchInterval: 30000,
+  });
+
+  useEffect(() => {
+    if (settings?.exchange_rates) {
+      setRates({
+        BTC_NGN: settings.exchange_rates.BTC_NGN?.toString() || '',
+        ETH_NGN: settings.exchange_rates.ETH_NGN?.toString() || '',
+        USDT_NGN: settings.exchange_rates.USDT_NGN?.toString() || '',
+      });
+    }
+    if (settings?.fees) {
+      setFees({
+        cryptoBuy: settings.fees.cryptoBuy?.toString() || '',
+        cryptoSell: settings.fees.cryptoSell?.toString() || '',
+        swap: settings.fees.swap?.toString() || '',
+        bill: settings.fees.bill?.toString() || '',
+        transfer: settings.fees.transfer?.toString() || '',
+        giftcard: settings.fees.giftcard?.toString() || '',
+      });
+    }
+    if (settings?.api_keys) {
+      setApiKeys(prev => ({ ...prev, ...settings.api_keys }));
+    }
+  }, [settings]);
+
   const ratesMutation = useMutation({
-    mutationFn: () => updateSetting('exchange_rates', rates),
+    mutationFn: () => updateSetting('exchange_rates', {
+      BTC_NGN: parseFloat(rates.BTC_NGN) || 0,
+      ETH_NGN: parseFloat(rates.ETH_NGN) || 0,
+      USDT_NGN: parseFloat(rates.USDT_NGN) || 0,
+    }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-settings'] });
       toast({ title: 'Rates updated successfully', variant: 'success' });
@@ -85,7 +122,14 @@ export default function AdminSettingsPage() {
   });
 
   const feesMutation = useMutation({
-    mutationFn: () => updateSetting('fees', fees),
+    mutationFn: () => updateSetting('fees', {
+      cryptoBuy: parseFloat(fees.cryptoBuy) || 0,
+      cryptoSell: parseFloat(fees.cryptoSell) || 0,
+      swap: parseFloat(fees.swap) || 0,
+      bill: parseFloat(fees.bill) || 0,
+      transfer: parseFloat(fees.transfer) || 0,
+      giftcard: parseFloat(fees.giftcard) || 0,
+    }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-settings'] });
       toast({ title: 'Fees updated successfully', variant: 'success' });
@@ -116,6 +160,7 @@ export default function AdminSettingsPage() {
       } else {
         toast({ title: 'Connection Failed', description: result.message, variant: 'destructive' });
       }
+      refetchStatus();
     } catch (error) {
       setTestResults((prev) => ({
         ...prev,
@@ -126,7 +171,14 @@ export default function AdminSettingsPage() {
     }
   };
 
-  if (isLoading) {
+  const getStatusBadge = (status?: string) => {
+    if (!status) return <Badge variant="outline">Unknown</Badge>;
+    if (status === 'healthy') return <Badge className="bg-green-100 text-green-700">Operational</Badge>;
+    if (status === 'degraded') return <Badge className="bg-yellow-100 text-yellow-700">Degraded</Badge>;
+    return <Badge variant="destructive">Down</Badge>;
+  };
+
+  if (isLoading || statusLoading) {
     return (
       <div className="space-y-6">
         <div>
@@ -153,45 +205,62 @@ export default function AdminSettingsPage() {
           <h1 className="text-2xl font-bold text-slate-900">System Settings</h1>
           <p className="text-slate-500">Configure platform services</p>
         </div>
-        <Badge className="bg-green-600 text-white px-3 py-1">LIVE MODE</Badge>
+        <Badge className="bg-emerald-600 text-white px-3 py-1">LIVE MODE</Badge>
       </div>
 
+      {/* System Status Card */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <CheckCircle className="h-5 w-5 text-green-600" />
-            System Status
-          </CardTitle>
-          <CardDescription>All services are operational</CardDescription>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Shield className="h-5 w-5 text-emerald-500" />
+              <CardTitle>System Status</CardTitle>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => refetchStatus()}>
+              <RefreshCw className="h-4 w-4" />
+            </Button>
+          </div>
+          <CardDescription>
+            Overall status: {systemStatus?.status === 'healthy' ? (
+              <span className="text-green-600 font-medium">All systems operational</span>
+            ) : systemStatus?.status === 'degraded' ? (
+              <span className="text-yellow-600 font-medium">Some issues detected</span>
+            ) : (
+              <span className="text-red-600 font-medium">Critical issues</span>
+            )}
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="flex items-center gap-2 p-3 rounded-lg bg-green-50">
-              <CheckCircle className="h-5 w-5 text-green-600" />
-              <span className="text-sm font-medium">Flutterwave</span>
-            </div>
-            <div className="flex items-center gap-2 p-3 rounded-lg bg-green-50">
-              <CheckCircle className="h-5 w-5 text-green-600" />
-              <span className="text-sm font-medium">Tatum</span>
-            </div>
-            <div className="flex items-center gap-2 p-3 rounded-lg bg-green-50">
-              <CheckCircle className="h-5 w-5 text-green-600" />
-              <span className="text-sm font-medium">Database</span>
-            </div>
-            <div className="flex items-center gap-2 p-3 rounded-lg bg-green-50">
-              <CheckCircle className="h-5 w-5 text-green-600" />
-              <span className="text-sm font-medium">Email</span>
-            </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+            {[
+              { key: 'paystack', label: 'Paystack', icon: '💳' },
+              { key: 'vtpass', label: 'VTPass', icon: '⚡' },
+              { key: 'tatum', label: 'Tatum', icon: '₿' },
+              { key: 'email', label: 'Email', icon: '✉' },
+              { key: 'database', label: 'Database', icon: '🗄' },
+            ].map(({ key, label, icon }) => {
+              const service = systemStatus?.services?.[key as keyof typeof systemStatus.services];
+              return (
+                <div key={key} className="flex items-center gap-2 p-3 rounded-lg border">
+                  <span className="text-lg">{icon}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{label}</p>
+                    {getStatusBadge(service?.status)}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </CardContent>
       </Card>
 
+      {/* Exchange Rates Card */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
+          <div className="flex items-center gap-2">
             <TrendingUp className="h-5 w-5 text-amber-500" />
-            Exchange Rates
-          </CardTitle>
+            <CardTitle>Exchange Rates</CardTitle>
+          </div>
           <CardDescription>Current crypto to NGN rates</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -231,16 +300,17 @@ export default function AdminSettingsPage() {
         </CardContent>
       </Card>
 
+      {/* Transaction Fees Card */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
+          <div className="flex items-center gap-2">
             <Percent className="h-5 w-5 text-blue-500" />
-            Transaction Fees
-          </CardTitle>
+            <CardTitle>Transaction Fees</CardTitle>
+          </div>
           <CardDescription>Set fees for various transaction types</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             <div className="space-y-2">
               <Label>Crypto Buy Fee (%)</Label>
               <Input
@@ -262,6 +332,16 @@ export default function AdminSettingsPage() {
               />
             </div>
             <div className="space-y-2">
+              <Label>Crypto Swap Fee (%)</Label>
+              <Input
+                type="number"
+                step="0.1"
+                value={fees.swap}
+                onChange={(e) => setFees({ ...fees, swap: e.target.value })}
+                placeholder={(settings?.fees?.swap || 0.3).toString()}
+              />
+            </div>
+            <div className="space-y-2">
               <Label>Bill Payment Fee (NGN)</Label>
               <Input
                 type="number"
@@ -272,13 +352,23 @@ export default function AdminSettingsPage() {
               />
             </div>
             <div className="space-y-2">
+              <Label>Transfer Fee (NGN)</Label>
+              <Input
+                type="number"
+                step="1"
+                value={fees.transfer}
+                onChange={(e) => setFees({ ...fees, transfer: e.target.value })}
+                placeholder={(settings?.fees?.transfer || 10).toString()}
+              />
+            </div>
+            <div className="space-y-2">
               <Label>Gift Card Fee (%)</Label>
               <Input
                 type="number"
                 step="0.1"
-                value={fees.transfer}
-                onChange={(e) => setFees({ ...fees, transfer: e.target.value })}
-                placeholder={(settings?.fees?.transfer || 2).toString()}
+                value={fees.giftcard}
+                onChange={(e) => setFees({ ...fees, giftcard: e.target.value })}
+                placeholder={(settings?.fees?.giftcard || 3).toString()}
               />
             </div>
           </div>
@@ -289,67 +379,113 @@ export default function AdminSettingsPage() {
         </CardContent>
       </Card>
 
+      {/* API Keys Card */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
+          <div className="flex items-center gap-2">
             <Key className="h-5 w-5 text-purple-500" />
-            API Connections
-          </CardTitle>
-          <CardDescription>Test and manage external API connections</CardDescription>
+            <CardTitle>API Keys</CardTitle>
+          </div>
+          <CardDescription>Manage external API credentials</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-1">
-            <div className="flex items-center justify-between p-4 rounded-lg border">
-              <div>
-                <p className="font-medium">Paystack</p>
-                <p className="text-sm text-slate-500">Wallet funding & withdrawals</p>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleTestConnection('flutterwave')}
-                disabled={testingService === 'flutterwave'}
-              >
-                {testingService === 'flutterwave' ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : testResults.flutterwave?.success ? (
-                  <CheckCircle className="h-4 w-4 text-green-600" />
-                ) : testResults.flutterwave?.success === false ? (
-                  <XCircle className="h-4 w-4 text-red-600" />
-                ) : (
-                  'Test'
-                )}
-              </Button>
+          <div className="grid gap-4">
+            <div className="space-y-2">
+              <Label>Paystack Secret Key</Label>
+              <Input
+                type="password"
+                value={apiKeys.PAYSTACK_SECRET_KEY}
+                onChange={(e) => setApiKeys({ ...apiKeys, PAYSTACK_SECRET_KEY: e.target.value })}
+                placeholder="psk_..."
+              />
             </div>
-            <div className="flex items-center justify-between p-4 rounded-lg border">
-              <div>
-                <p className="font-medium">Tatum</p>
-                <p className="text-sm text-slate-500">Crypto trading rates</p>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleTestConnection('tatum')}
-                disabled={testingService === 'tatum'}
-              >
-                {testingService === 'tatum' ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : testResults.tatum?.success ? (
-                  <CheckCircle className="h-4 w-4 text-green-600" />
-                ) : testResults.tatum?.success === false ? (
-                  <XCircle className="h-4 w-4 text-red-600" />
-                ) : (
-                  'Test'
-                )}
-              </Button>
+            <div className="space-y-2">
+              <Label>VTPass API Key</Label>
+              <Input
+                type="password"
+                value={apiKeys.VTPASS_API_KEY}
+                onChange={(e) => setApiKeys({ ...apiKeys, VTPASS_API_KEY: e.target.value })}
+                placeholder="Bearer token..."
+              />
             </div>
-            <div className="flex items-center justify-between p-4 rounded-lg border">
-              <div>
-                <p className="font-medium">Gift Cards</p>
-                <p className="text-sm text-slate-500">Manual processing</p>
-              </div>
-              <Badge className="bg-blue-100 text-blue-700">Manual</Badge>
+            <div className="space-y-2">
+              <Label>Tatum API Key</Label>
+              <Input
+                type="password"
+                value={apiKeys.TATUM_API_KEY}
+                onChange={(e) => setApiKeys({ ...apiKeys, TATUM_API_KEY: e.target.value })}
+                placeholder="tatum-api-key..."
+              />
             </div>
+            <div className="space-y-2">
+              <Label>Reloadly Client ID</Label>
+              <Input
+                type="text"
+                value={apiKeys.RELOADLY_CLIENT_ID}
+                onChange={(e) => setApiKeys({ ...apiKeys, RELOADLY_CLIENT_ID: e.target.value })}
+                placeholder="Reloadly client ID..."
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Reloadly Client Secret</Label>
+              <Input
+                type="password"
+                value={apiKeys.RELOADLY_CLIENT_SECRET}
+                onChange={(e) => setApiKeys({ ...apiKeys, RELOADLY_CLIENT_SECRET: e.target.value })}
+                placeholder="Reloadly client secret..."
+              />
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Button onClick={() => apiKeysMutation.mutate()} disabled={apiKeysMutation.isPending}>
+              {apiKeysMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              Save API Keys
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => handleTestConnection('paystack')}
+              disabled={testingService === 'paystack'}
+            >
+              {testingService === 'paystack' ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : testResults.paystack?.success ? (
+                <CheckCircle className="h-4 w-4 text-green-600" />
+              ) : testResults.paystack?.success === false ? (
+                <XCircle className="h-4 w-4 text-red-600" />
+              ) : (
+                'Test Paystack'
+              )}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => handleTestConnection('vtpass')}
+              disabled={testingService === 'vtpass'}
+            >
+              {testingService === 'vtpass' ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : testResults.vtpass?.success ? (
+                <CheckCircle className="h-4 w-4 text-green-600" />
+              ) : testResults.vtpass?.success === false ? (
+                <XCircle className="h-4 w-4 text-red-600" />
+              ) : (
+                'Test VTPass'
+              )}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => handleTestConnection('tatum')}
+              disabled={testingService === 'tatum'}
+            >
+              {testingService === 'tatum' ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : testResults.tatum?.success ? (
+                <CheckCircle className="h-4 w-4 text-green-600" />
+              ) : testResults.tatum?.success === false ? (
+                <XCircle className="h-4 w-4 text-red-600" />
+              ) : (
+                'Test Tatum'
+              )}
+            </Button>
           </div>
         </CardContent>
       </Card>

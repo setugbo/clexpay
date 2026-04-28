@@ -46,6 +46,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
 
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (userMenuOpen) setUserMenuOpen(false);
+        if (sidebarOpen) setSidebarOpen(false);
+      }
+    };
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [userMenuOpen, sidebarOpen]);
+
   const userRole = (session?.user as { role?: string })?.role;
   const isAdmin = userRole === 'admin' || userRole === 'super_admin';
 
@@ -133,7 +144,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </nav>
 
           <div className="p-4 border-t">
-            <div className="relative">
+            <div className="relative" onClick={(e) => e.stopPropagation()}>
               <button
                 onClick={() => setUserMenuOpen(!userMenuOpen)}
                 className="flex items-center gap-3 w-full px-3 py-2 rounded-xl hover:bg-slate-100 transition-colors"

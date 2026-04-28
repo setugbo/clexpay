@@ -261,7 +261,7 @@ function WalletContent() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
-        <Button onClick={() => setModal('fund')} className="h-20 flex flex-col gap-1 bg-green-600 hover:bg-green-700">
+        <Button onClick={() => setModal('fund')} className="h-20 flex flex-col gap-1 bg-emerald-600 hover:bg-emerald-700">
           <Download className="h-5 w-5" />
           <span>Fund Wallet</span>
         </Button>
