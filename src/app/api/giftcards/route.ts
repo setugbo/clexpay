@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { giftCardService } from '@/lib/services/implementations/live/gift.card.service';
+import { giftCardServiceFactory } from '@/lib/services/factory';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {
+    const giftCardService = await giftCardServiceFactory();
     const { searchParams } = new URL(request.url);
     const categoryId = searchParams.get('categoryId');
     const orderId = searchParams.get('orderId');
@@ -57,6 +58,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 
+    const giftCardService = await giftCardServiceFactory();
     const userId = (session.user as { id?: string }).id!;
     const body = await request.json();
     const { productId, amount, calculateOnly } = body;

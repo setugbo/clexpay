@@ -40,9 +40,9 @@ function isRateLimited(key: string, limit: number): boolean {
   return false;
 }
 
-function getLimitForRoute(path: string): number {
-  if (path.includes('/api/auth')) return RATE_LIMIT_MAX.auth;
-  if (['POST', 'PUT', 'PATCH', 'DELETE'].some(m => path.includes(m))) return RATE_LIMIT_MAX.write;
+function getLimitForRoute(pathname: string, method: string): number {
+  if (pathname.includes('/api/auth')) return RATE_LIMIT_MAX.auth;
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) return RATE_LIMIT_MAX.write;
   return RATE_LIMIT_MAX.default;
 }
 
@@ -59,8 +59,9 @@ setInterval(() => {
 
 export function middleware(request: NextRequest) {
   const ip = getClientIP(request);
-  const key = `${ip}:${request.nextUrl.pathname}`;
-  const limit = getLimitForRoute(request.nextUrl.pathname);
+  const pathname = request.nextUrl.pathname;
+  const key = `${ip}:${pathname}:${request.method}`;
+  const limit = getLimitForRoute(pathname, request.method);
 
   if (isRateLimited(key, limit)) {
     return NextResponse.json(

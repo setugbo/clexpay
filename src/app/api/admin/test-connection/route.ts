@@ -158,6 +158,9 @@ async function testEmail(): Promise<TestResult> {
   const start = Date.now();
   try {
     const { transporter } = await import('@/lib/email');
+    if (!transporter) {
+      return { success: false, message: 'Email transport not available' };
+    }
     await transporter.verify();
     const latency = Date.now() - start;
     return { success: true, latency, message: 'Email service configured and verified' };

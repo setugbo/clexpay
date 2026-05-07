@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import { PAYSTACK_SECRET_KEY } from '@/lib/services/paystack';
 import { sendTransactionEmail } from '@/lib/email';
@@ -13,17 +11,25 @@ export async function POST(request: NextRequest) {
     const body = await request.text();
 
     // Verify webhook signature
-    if (PAYSTACK_SECRET_KEY && signature) {
-      const crypto = await import('crypto');
-      const hash = crypto
-        .createHmac('sha512', PAYSTACK_SECRET_KEY)
-        .update(body)
-        .digest('hex');
+    if (!PAYSTACK_SECRET_KEY) {
+      console.error('[PAYSTACK-WEBHOOK] PAYSTACK_SECRET_KEY not configured');
+      return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
+    }
 
-      if (hash !== signature) {
-        console.error('[PAYSTACK-WEBHOOK] Invalid signature');
-        return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
-      }
+    if (!signature) {
+      console.error('[PAYSTACK-WEBHOOK] Missing signature header');
+      return NextResponse.json({ error: 'Missing signature' }, { status: 401 });
+    }
+
+    const crypto = await import('crypto');
+    const hash = crypto
+      .createHmac('sha512', PAYSTACK_SECRET_KEY)
+      .update(body)
+      .digest('hex');
+
+    if (hash !== signature) {
+      console.error('[PAYSTACK-WEBHOOK] Invalid signature');
+      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
     }
 
     const event = JSON.parse(body);

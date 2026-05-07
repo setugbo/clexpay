@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
 
@@ -10,6 +12,15 @@ async function hashPassword(password: string): Promise<string> {
 
 export async function POST() {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+    const userRole = (session.user as { role?: string }).role;
+    if (userRole !== 'super_admin') {
+      return NextResponse.json({ success: false, error: 'Super admin access required' }, { status: 403 });
+    }
+
     await prisma.transaction.deleteMany({});
     await prisma.activityLog.deleteMany({});
     await prisma.wallet.deleteMany({});
@@ -91,23 +102,13 @@ export async function POST() {
     return NextResponse.json({
       success: true,
       message: 'Database seeded successfully',
-      users: {
-        superAdmin: 'wordpressgee@gmail.com / Super@2024',
-        admin: 'admin@clexpay.com / Admin@123',
-        demo: 'demo@clexpay.com / Demo@1234',
-      },
-      mode: 'LIVE',
-      balances: { NGN: 500000, BTC: 0.05, ETH: 0.5, USDT: 1000 },
     });
   } catch (error) {
     console.error('Seed error:', error);
-    return NextResponse.json(
-      { success: false, error: String(error) },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, error: String(error) }, { status: 500 });
   }
 }
 
 export async function GET() {
-  return POST();
+  return NextResponse.json({ success: false, error: 'Use POST to seed' }, { status: 405 });
 }

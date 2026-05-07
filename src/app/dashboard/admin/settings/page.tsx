@@ -14,7 +14,7 @@ interface SettingsData {
   exchange_rates?: Record<string, number>;
   fees?: Record<string, number>;
   api_keys?: Record<string, string>;
-  currentMode: 'live';
+  currentMode: 'demo' | 'live';
 }
 
 interface SystemStatus {

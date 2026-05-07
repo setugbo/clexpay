@@ -1,38 +1,63 @@
-import { PrismaClient } from '@prisma/client';
+import prisma from '@/lib/prisma';
 import { LiveWalletService } from './implementations/live/live.wallet.service';
 import { TatumCryptoService } from './implementations/live/tatum.crypto.service';
 import { VtpassBillService } from './implementations/live/vtpass.bill.service';
 import { GiftCardService } from './implementations/live/gift.card.service';
+import { DemoWalletService } from './implementations/demo/demo.wallet.service';
+import { DemoCryptoService } from './implementations/demo/demo.crypto.service';
+import { DemoBillService } from './implementations/demo/demo.bill.service';
+import { DemoGiftCardService } from './implementations/demo/demo.giftcard.service';
 
-const prisma = new PrismaClient();
-const giftCardService = new GiftCardService();
+export type SystemMode = 'demo' | 'live';
+
+const liveGiftCardService = new GiftCardService();
+
+export async function getCurrentMode(): Promise<SystemMode> {
+  try {
+    const setting = await prisma.setting.findUnique({
+      where: { key: 'system_mode' },
+    });
+    if (setting && typeof setting.value === 'object' && setting.value !== null) {
+      const value = setting.value as { mode?: string };
+      return value.mode === 'live' ? 'live' : 'demo';
+    }
+  } catch {
+    // fall through
+  }
+  return 'demo';
+}
+
+export async function setSystemMode(mode: SystemMode) {
+  await prisma.setting.upsert({
+    where: { key: 'system_mode' },
+    update: { value: { mode } },
+    create: {
+      key: 'system_mode',
+      value: { mode },
+      description: 'System operating mode (demo | live)',
+    },
+  });
+}
 
 export async function walletServiceFactory() {
-  return new LiveWalletService();
+  const mode = await getCurrentMode();
+  return mode === 'demo' ? new DemoWalletService() : new LiveWalletService();
 }
 
 export async function cryptoServiceFactory() {
-  return new TatumCryptoService();
+  const mode = await getCurrentMode();
+  return mode === 'demo' ? new DemoCryptoService() : new TatumCryptoService();
 }
 
 export async function billServiceFactory() {
-  return new VtpassBillService();
+  const mode = await getCurrentMode();
+  return mode === 'demo' ? new DemoBillService() : new VtpassBillService();
 }
 
+/** User-facing gift card flows (catalog + orders). Admin routes may still use live `giftCardService` for ops queues. */
 export async function giftCardServiceFactory() {
-  return giftCardService;
-}
-
-export async function getCurrentMode() {
-  return 'live' as const;
-}
-
-export async function setSystemMode(mode: 'live') {
-  await prisma.setting.upsert({
-    where: { key: 'system_mode' },
-    update: { value: { mode: 'live' } },
-    create: { key: 'system_mode', value: { mode: 'live' }, description: 'System operating mode' },
-  });
+  const mode = await getCurrentMode();
+  return mode === 'demo' ? new DemoGiftCardService() : liveGiftCardService;
 }
 
 export async function getExchangeRates() {

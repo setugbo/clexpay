@@ -120,6 +120,9 @@ async function checkEmailService(): Promise<HealthStatus> {
   const start = Date.now();
   try {
     const { transporter } = await import('@/lib/email');
+    if (!transporter) {
+      return { status: 'degraded', message: 'Email not configured' };
+    }
     await transporter.verify();
     const latency = Date.now() - start;
     return { status: 'healthy', latency, message: 'Email service configured and verified' };

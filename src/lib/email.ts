@@ -1,21 +1,45 @@
 import nodemailer from 'nodemailer';
 
-export const transporter = nodemailer.createTransport({
-  host: process.env.EMAIL_HOST || 'mail.clexpay.com',
-  port: parseInt(process.env.EMAIL_PORT || '465'),
-  secure: true,
-  auth: {
-    user: process.env.EMAIL_USER || 'hello@clexpay.com',
-    pass: process.env.EMAIL_PASSWORD || 'Inspire@2026',
-  },
-});
+function getEmailConfig() {
+  const host = process.env.EMAIL_HOST;
+  const port = parseInt(process.env.EMAIL_PORT || '587');
+  const user = process.env.EMAIL_USER;
+  const pass = process.env.EMAIL_PASSWORD;
+
+  if (!host || !user || !pass) {
+    console.warn('[EMAIL] SMTP not configured - email sending disabled');
+    return null;
+  }
+
+  return { host, port, user, pass };
+}
+
+function createTransporter() {
+  const config = getEmailConfig();
+  if (!config) {
+    return null;
+  }
+  return nodemailer.createTransport({
+    host: config.host,
+    port: config.port,
+    secure: config.port === 465,
+    auth: {
+      user: config.user,
+      pass: config.pass,
+    },
+  });
+}
+
+export const transporter = createTransporter();
 
 export async function sendOTPEmail(email: string, otp: string): Promise<boolean> {
+  if (!transporter) {
+    console.warn('[EMAIL] Cannot send - SMTP not configured');
+    return false;
+  }
   try {
     await transporter.sendMail({
-      from: `"Clexpay" <${process.env.EMAIL_USER || 'hello@clexpay.com'}>`,
-      to: email,
-      subject: 'Your Clexpay Verification Code',
+      from: `"Clexpay" <${process.env.EMAIL_USER || 'noreply@clexpay.com'}>`,
       html: `
         <!DOCTYPE html>
         <html>
@@ -64,6 +88,10 @@ export async function sendTransactionEmail(
     cardCode?: string;
   }
 ): Promise<boolean> {
+  if (!transporter) {
+    console.warn('[EMAIL] Cannot send - SMTP not configured');
+    return false;
+  }
   try {
     const statusColor = details.status === 'success' ? '#10b981' : details.status === 'failed' ? '#ef4444' : '#f59e0b';
     const statusBg = details.status === 'success' ? '#d1fae5' : details.status === 'failed' ? '#fee2e2' : '#fef3c7';
@@ -76,7 +104,7 @@ export async function sendTransactionEmail(
     ` : '';
 
     await transporter.sendMail({
-      from: `"Clexpay" <${process.env.EMAIL_USER || 'hello@clexpay.com'}>`,
+      from: `"Clexpay" <${process.env.EMAIL_USER || 'noreply@clexpay.com'}>`,
       to: email,
       subject: `Transaction ${details.status === 'success' ? 'Confirmed' : 'Update'}: ${details.reference}`,
       html: `
@@ -134,9 +162,13 @@ export async function sendTransactionEmail(
 }
 
 export async function sendWelcomeEmail(email: string, name: string): Promise<boolean> {
+  if (!transporter) {
+    console.warn('[EMAIL] Cannot send - SMTP not configured');
+    return false;
+  }
   try {
     await transporter.sendMail({
-      from: `"Clexpay" <${process.env.EMAIL_USER || 'hello@clexpay.com'}>`,
+      from: `"Clexpay" <${process.env.EMAIL_USER || 'noreply@clexpay.com'}>`,
       to: email,
       subject: 'Welcome to Clexpay!',
       html: `

@@ -109,7 +109,7 @@ export async function POST(request: NextRequest) {
     }
 
     const billService = await billServiceFactory();
-    const transaction = await billService.payBill(userId, serviceId, productId, customerId);
+    const transaction = await billService.payBill(userId, serviceId, productId, customerId, amount);
 
     return NextResponse.json({
       success: true,

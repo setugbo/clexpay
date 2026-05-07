@@ -35,6 +35,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (user.otpExpiresAt && new Date(user.otpExpiresAt).getTime() > Date.now() - 60 * 1000) {
+      return NextResponse.json(
+        { success: false, error: 'Please wait before requesting a new OTP' },
+        { status: 429 }
+      );
+    }
+
     const otpCode = generateOTP();
     const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
 

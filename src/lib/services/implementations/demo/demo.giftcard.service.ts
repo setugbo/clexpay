@@ -1,9 +1,9 @@
-import { PrismaClient } from '@prisma/client';
 import { IGiftCardService } from '../../interfaces/giftcard.service.interface';
 import { GiftCardCategory, GiftCardProduct, Transaction } from '@/types';
 import { generateReference } from '@/lib/utils';
+import prisma from '@/lib/prisma';
 
-const prisma = new PrismaClient();
+const NGN_PER_USD = 1500;
 
 const GIFT_CARD_CATEGORIES: GiftCardCategory[] = [
   {
@@ -52,6 +52,14 @@ const GIFT_CARD_CATEGORIES: GiftCardCategory[] = [
 ];
 
 export class DemoGiftCardService implements IGiftCardService {
+  private findProduct(productId: string): GiftCardProduct | undefined {
+    for (const category of GIFT_CARD_CATEGORIES) {
+      const product = category.products.find((p) => p.id === productId);
+      if (product) return product;
+    }
+    return undefined;
+  }
+
   async getCategories(): Promise<GiftCardCategory[]> {
     return GIFT_CARD_CATEGORIES;
   }
@@ -61,15 +69,93 @@ export class DemoGiftCardService implements IGiftCardService {
     return category?.products || [];
   }
 
-  async buyGiftCard(userId: string, productId: string, amount: number): Promise<Transaction> {
-    let foundProduct: GiftCardProduct | undefined;
-    for (const category of GIFT_CARD_CATEGORIES) {
-      const product = category.products.find((p) => p.id === productId);
-      if (product) {
-        foundProduct = product;
-        break;
-      }
+  /** Matches live API: USD face value + fee, total charged in NGN. */
+  async calculatePrice(productId: string, usdAmount: number): Promise<{
+    product: GiftCardProduct;
+    usdAmount: number;
+    fee: number;
+    totalNgn: number;
+    deliveryType: 'instant' | 'processing';
+  }> {
+    const product = this.findProduct(productId);
+    if (!product) throw new Error('Product not found');
+    const fee = (usdAmount * 2) / 100;
+    const totalNgn = (usdAmount + fee) * NGN_PER_USD;
+    return {
+      product,
+      usdAmount,
+      fee,
+      totalNgn,
+      deliveryType: 'instant',
+    };
+  }
+
+  async createOrder(userId: string, productId: string, usdAmount: number): Promise<{
+    order: Transaction;
+    deliveryType: 'instant' | 'processing';
+  }> {
+    const product = this.findProduct(productId);
+    if (!product) throw new Error('Product not found');
+    if (usdAmount < product.minAmount || usdAmount > product.maxAmount) {
+      throw new Error(`Amount must be between $${product.minAmount} and $${product.maxAmount}`);
     }
+
+    const { fee, totalNgn } = await this.calculatePrice(productId, usdAmount);
+    const wallet = await prisma.wallet.findUnique({
+      where: { userId_currency: { userId, currency: 'NGN' } },
+    });
+    if (!wallet) throw new Error('Wallet not found');
+    if (Number(wallet.balance) < totalNgn) throw new Error('Insufficient balance');
+
+    const reference = generateReference();
+    const demoCode = this.generateDemoCode();
+
+    const order = await prisma.$transaction(async (tx) => {
+      await tx.wallet.update({
+        where: { id: wallet.id },
+        data: { balance: { decrement: totalNgn } },
+      });
+
+      return tx.transaction.create({
+        data: {
+          userId,
+          type: 'giftcard',
+          currency: 'NGN',
+          amount: totalNgn,
+          fee,
+          status: 'success',
+          reference,
+          description: `Purchase ${product.name}`,
+          metadata: {
+            productId,
+            productName: product.name,
+            brand: product.brand,
+            usdAmount,
+            cardCode: demoCode,
+            deliveryType: 'instant',
+          },
+        },
+      });
+    });
+
+    return { order: order as unknown as Transaction, deliveryType: 'instant' };
+  }
+
+  async getOrderById(transactionId: string): Promise<Transaction | null> {
+    const row = await prisma.transaction.findUnique({ where: { id: transactionId } });
+    return row as unknown as Transaction | null;
+  }
+
+  async getUserOrders(userId: string): Promise<Transaction[]> {
+    const rows = await prisma.transaction.findMany({
+      where: { userId, type: 'giftcard' },
+      orderBy: { createdAt: 'desc' },
+    });
+    return rows as unknown as Transaction[];
+  }
+
+  async buyGiftCard(userId: string, productId: string, amount: number): Promise<Transaction> {
+    const foundProduct = this.findProduct(productId);
 
     if (!foundProduct) throw new Error('Gift card not found');
     if (amount < foundProduct.minAmount || amount > foundProduct.maxAmount) {
