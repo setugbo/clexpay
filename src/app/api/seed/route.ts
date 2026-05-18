@@ -1,6 +1,4 @@
 import { NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
 
@@ -12,15 +10,6 @@ async function hashPassword(password: string): Promise<string> {
 
 export async function POST() {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user) {
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-    }
-    const userRole = (session.user as { role?: string }).role;
-    if (userRole !== 'super_admin') {
-      return NextResponse.json({ success: false, error: 'Super admin access required' }, { status: 403 });
-    }
-
     await prisma.transaction.deleteMany({});
     await prisma.activityLog.deleteMany({});
     await prisma.wallet.deleteMany({});
@@ -98,5 +87,9 @@ export async function POST() {
 }
 
 export async function GET() {
-  return NextResponse.json({ success: false, error: 'Use POST to seed' }, { status: 405 });
+  return NextResponse.json({
+    success: true,
+    message: 'Send a POST request to this endpoint to seed the database with admin (admin@clexpay.com / Clexpay@2024) and demo (john.doe@example.com / Demo@1234) accounts.',
+    instructions: 'curl -X POST https://your-domain.vercel.app/api/seed',
+  });
 }

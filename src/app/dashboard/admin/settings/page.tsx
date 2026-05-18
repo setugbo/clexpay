@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Shield, CheckCircle, XCircle, RefreshCw, Key, Percent, TrendingUp, AlertCircle } from 'lucide-react';
+import { Loader2, Shield, CheckCircle, XCircle, RefreshCw, Key, Percent, TrendingUp, AlertCircle, Trash2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -52,6 +52,13 @@ async function updateSetting(key: string, value: unknown) {
   return data.data;
 }
 
+async function resetDatabase(): Promise<{ success: boolean; message: string }> {
+  const res = await fetch('/api/reset', { method: 'POST' });
+  const data = await res.json();
+  if (!data.success) throw new Error(data.error);
+  return data;
+}
+
 async function testConnection(service: string): Promise<{ success: boolean; message: string }> {
   const res = await fetch('/api/admin/test-connection', {
     method: 'POST',
@@ -70,6 +77,7 @@ export default function AdminSettingsPage() {
   const [apiKeys, setApiKeys] = useState({ PAYSTACK_SECRET_KEY: '', VTPASS_API_KEY: '', TATUM_API_KEY: '', RELOADLY_CLIENT_ID: '', RELOADLY_CLIENT_SECRET: '' });
   const [testingService, setTestingService] = useState<string | null>(null);
   const [testResults, setTestResults] = useState<Record<string, { success: boolean; message: string }>>({});
+  const [resetting, setResetting] = useState(false);
 
   const { data: settings, isLoading } = useQuery({
     queryKey: ['admin-settings'],
@@ -168,6 +176,22 @@ export default function AdminSettingsPage() {
       }));
     } finally {
       setTestingService(null);
+    }
+  };
+
+  const handleReset = async () => {
+    if (!window.confirm('Are you sure you want to reset the entire database? This will delete all users, transactions, and data except your account. Type "RESET" to confirm.')) return;
+    const confirmation = window.prompt('Type RESET to confirm database reset:');
+    if (confirmation !== 'RESET') return;
+    setResetting(true);
+    try {
+      const result = await resetDatabase();
+      toast({ title: 'Database Reset', description: result.message, variant: 'success' });
+      queryClient.invalidateQueries({ queryKey: ['admin-settings'] });
+    } catch (error) {
+      toast({ title: 'Reset Failed', description: error instanceof Error ? error.message : 'Unknown error', variant: 'destructive' });
+    } finally {
+      setResetting(false);
     }
   };
 
@@ -487,6 +511,40 @@ export default function AdminSettingsPage() {
               ) : (
                 'Test Tatum'
               )}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Danger Zone Card */}
+      <Card className="border-red-200">
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            <AlertCircle className="h-5 w-5 text-red-500" />
+            <CardTitle className="text-red-600">Danger Zone</CardTitle>
+          </div>
+          <CardDescription className="text-red-500">
+            Irreversible actions — use with caution
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between p-4 border border-red-200 rounded-lg bg-red-50">
+            <div>
+              <p className="font-medium text-red-800">Reset Database</p>
+              <p className="text-sm text-red-600">Delete all data and re-seed with default admin and demo accounts</p>
+            </div>
+            <Button
+              variant="destructive"
+              onClick={handleReset}
+              disabled={resetting}
+              className="shrink-0"
+            >
+              {resetting ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : (
+                <Trash2 className="h-4 w-4 mr-2" />
+              )}
+              Reset Database
             </Button>
           </div>
         </CardContent>
