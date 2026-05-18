@@ -28,23 +28,11 @@ export async function POST() {
 
     const superAdmin = await prisma.user.create({
       data: {
-        email: 'wordpressgee@gmail.com',
-        passwordHash: await hashPassword('Super@2024'),
-        firstName: 'Super',
-        lastName: 'Admin',
-        role: 'super_admin',
-        status: 'active',
-        emailVerified: true,
-      },
-    });
-
-    const admin = await prisma.user.create({
-      data: {
         email: 'admin@clexpay.com',
-        passwordHash: await hashPassword('Admin@123'),
-        firstName: 'Clexpay',
-        lastName: 'Admin',
-        role: 'admin',
+        passwordHash: await hashPassword('Clexpay@2024'),
+        firstName: 'Admin',
+        lastName: 'User',
+        role: 'super_admin',
         status: 'active',
         emailVerified: true,
       },
@@ -52,31 +40,31 @@ export async function POST() {
 
     const demoUser = await prisma.user.create({
       data: {
-        email: 'demo@clexpay.com',
+        email: 'john.doe@example.com',
         passwordHash: await hashPassword('Demo@1234'),
-        firstName: 'Demo',
-        lastName: 'User',
+        firstName: 'John',
+        lastName: 'Doe',
         role: 'user',
         status: 'active',
         emailVerified: true,
       },
     });
 
-    for (const user of [superAdmin, admin, demoUser]) {
+    for (const user of [superAdmin, demoUser]) {
       await prisma.wallet.createMany({
         data: [
-          { userId: user.id, currency: 'NGN', balance: 500000, isCrypto: false },
-          { userId: user.id, currency: 'BTC', balance: 0.05, isCrypto: true },
-          { userId: user.id, currency: 'ETH', balance: 0.5, isCrypto: true },
-          { userId: user.id, currency: 'USDT', balance: 1000, isCrypto: true },
+          { userId: user.id, currency: 'NGN', balance: 10_000_000, isCrypto: false },
+          { userId: user.id, currency: 'BTC', balance: 2, isCrypto: true },
+          { userId: user.id, currency: 'ETH', balance: 20, isCrypto: true },
+          { userId: user.id, currency: 'USDT', balance: 50_000, isCrypto: true },
         ],
       });
     }
 
     await prisma.setting.upsert({
       where: { key: 'system_mode' },
-      update: { value: { mode: 'live' } },
-      create: { key: 'system_mode', value: { mode: 'live' }, description: 'System operating mode' },
+      update: { value: { mode: 'demo' } },
+      create: { key: 'system_mode', value: { mode: 'demo' }, description: 'System operating mode' },
     });
 
     await prisma.setting.upsert({

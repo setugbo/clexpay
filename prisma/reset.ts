@@ -19,7 +19,7 @@ async function main() {
 
   const admin = await prisma.user.create({
     data: {
-      email: 'wordpressgee@gmail.com',
+      email: 'admin@clexpay.com',
       passwordHash: adminPw,
       firstName: 'Admin',
       lastName: 'User',
@@ -39,7 +39,7 @@ async function main() {
     ],
   });
 
-  console.log('  Super admin: wordpressgee@gmail.com / Clexpay@2024');
+  console.log('  Super admin: admin@clexpay.com / Clexpay@2024');
 
   const demo = await prisma.user.create({
     data: {
@@ -93,7 +93,7 @@ async function main() {
 
   console.log('\nDatabase reset complete. Fresh state ready.');
   console.log('=============================================');
-  console.log('  Super Admin: wordpressgee@gmail.com / Clexpay@2024');
+  console.log('  Super Admin: admin@clexpay.com / Clexpay@2024');
   console.log('  Demo User:   john.doe@example.com    / Demo@1234');
   console.log('=============================================');
 }

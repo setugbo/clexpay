@@ -15,7 +15,7 @@ async function main() {
   // Create Super Admin
   const superAdmin = await prisma.user.create({
     data: {
-      email: 'wordpressgee@gmail.com',
+      email: 'admin@clexpay.com',
       passwordHash: await bcrypt.hash('Clexpay@2024', 12),
       firstName: 'Admin',
       lastName: 'User',
@@ -36,7 +36,7 @@ async function main() {
     ],
   });
 
-  console.log('✅ Created Super Admin: wordpressgee@gmail.com / Clexpay@2024');
+  console.log('✅ Created Super Admin: admin@clexpay.com / Clexpay@2024');
 
   // Create Admin user
   const admin = await prisma.user.create({
@@ -130,9 +130,9 @@ async function main() {
   console.log('LOGIN CREDENTIALS');
   console.log('=====================================');
   console.log('');
-  console.log('🔐 SUPER ADMIN (Full Access):');
-  console.log('   Email: wordpressgee@gmail.com');
-  console.log('   Password: Clexpay@2024');
+   console.log('🔐 SUPER ADMIN (Full Access):');
+   console.log('   Email: admin@clexpay.com');
+   console.log('   Password: Clexpay@2024');
   console.log('');
   console.log('🔐 ADMIN:');
   console.log('   Email: admin@clexpay.com');
