@@ -5,6 +5,7 @@ import prisma from '@/lib/prisma';
 import { initializeTransaction, verifyTransaction } from '@/lib/services/paystack';
 import { generateReference } from '@/lib/utils';
 import { sendTransactionEmail } from '@/lib/email';
+import { checkRateLimit, getRateLimitIdentifier } from '@/lib/rate-limit';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,6 +37,12 @@ export async function POST(request: NextRequest) {
     }
 
     const userId = (session.user as { id?: string }).id!;
+
+    const { allowed } = await checkRateLimit(`user:${userId}`, '/api/wallet/fund', { maxRequests: 10, windowMs: 60 * 1000 });
+    if (!allowed) {
+      return NextResponse.json({ success: false, error: 'Too many requests. Please try again later.' }, { status: 429 });
+    }
+
     const body = await request.json();
     const { amount, verify } = body;
 
@@ -58,15 +65,22 @@ export async function POST(request: NextRequest) {
         where: { reference: verify },
       });
 
-      if (transaction && transaction.status === 'success') {
-        console.log('[FUND] Transaction already credited:', verify);
-        return NextResponse.json({
-          success: true,
-          verified: true,
-          alreadyCredited: true,
-          amount: result.amount,
-          message: 'Payment already credited to wallet',
-        });
+      if (transaction) {
+        if (transaction.userId !== userId) {
+          console.error('[FUND] Transaction belongs to different user:', { transactionUserId: transaction.userId, sessionUserId: userId });
+          return NextResponse.json({ success: false, error: 'Payment reference not found' }, { status: 404 });
+        }
+
+        if (transaction.status === 'success') {
+          console.log('[FUND] Transaction already credited:', verify);
+          return NextResponse.json({
+            success: true,
+            verified: true,
+            alreadyCredited: true,
+            amount: result.amount,
+            message: 'Payment already credited to wallet',
+          });
+        }
       }
 
       const user = await prisma.user.findUnique({

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { setSystemMode, getCurrentMode } from '@/lib/services/factory';
+import prisma from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,11 +26,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Invalid mode. Use "demo" or "live"' }, { status: 400 });
     }
 
+    const previousMode = await getCurrentMode();
     await setSystemMode(mode);
+
+    await prisma.activityLog.create({
+      data: {
+        userId: (session.user as { id?: string }).id,
+        action: 'system.mode_changed',
+        entityType: 'setting',
+        entityId: 'system_mode',
+        details: { from: previousMode, to: mode },
+        ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip'),
+      },
+    });
 
     return NextResponse.json({
       success: true,
-      data: { mode: await getCurrentMode() },
+      data: { mode },
     });
   } catch (error) {
     console.error('Switch mode error:', error);

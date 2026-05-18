@@ -141,6 +141,19 @@ model ActivityLog {
   @@map("activity_logs")
 }
 
+model RateLimit {
+  id        String   @id @default(uuid())
+  identifier String  // IP address or userId
+  endpoint  String   // API route path
+  windowStart DateTime @map("window_start")
+  count     Int      @default(1)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([identifier, endpoint, windowStart])
+  @@index([identifier, endpoint, windowStart])
+  @@map("rate_limits")
+}
+
 model ApiError {
   id           String   @id @default(uuid())
   endpoint     String   @map("endpoint")

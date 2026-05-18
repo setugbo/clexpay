@@ -5,6 +5,7 @@ import prisma from '@/lib/prisma';
 import { createTransferRecipient, initiateTransfer, getBanks } from '@/lib/services/paystack';
 import { generateReference } from '@/lib/utils';
 import { sendTransactionEmail } from '@/lib/email';
+import { checkRateLimit, getRateLimitIdentifier } from '@/lib/rate-limit';
 
 export const dynamic = 'force-dynamic';
 
@@ -42,6 +43,12 @@ export async function POST(request: NextRequest) {
     }
 
     const userId = (session.user as { id?: string }).id!;
+
+    const { allowed } = await checkRateLimit(`user:${userId}`, '/api/wallet/withdraw', { maxRequests: 5, windowMs: 60 * 1000 });
+    if (!allowed) {
+      return NextResponse.json({ success: false, error: 'Too many requests. Please try again later.' }, { status: 429 });
+    }
+
     const body = await request.json();
     const { amount, bankCode, accountNumber, accountName } = body;
 

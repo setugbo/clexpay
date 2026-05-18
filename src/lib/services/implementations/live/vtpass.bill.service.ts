@@ -1,9 +1,7 @@
 import { BillService, BillProduct, Transaction } from '@/types';
 import { generateReference } from '@/lib/utils';
-import { PrismaClient } from '@prisma/client';
 import { buyBill as vtpassBuyBill, getServices as vtpassGetServices, isVtpassConfigured, getServiceName } from '@/lib/services/vtpass';
-
-const prisma = new PrismaClient();
+import prisma from '@/lib/prisma';
 
 const BILL_SERVICES: BillService[] = [
   {
@@ -132,35 +130,9 @@ export class VtpassBillService {
     if (balance < totalAmount) throw new Error('Insufficient balance');
 
     const reference = generateReference();
-    let billPaymentSuccess = false;
-    let billResult: { success: boolean; message: string; data?: unknown } = { success: false, message: 'Not processed' };
 
     if (!isVtpassConfigured()) {
       throw new Error('Bill payment service is not configured. Please configure VTPass API credentials.');
-    }
-
-    try {
-      console.log('[BILLS] Processing VTPass bill payment:', { serviceId, productCode: product.code, customerId, amount: billAmount });
-      
-      const parts = productId.split(':');
-      const variationCode = parts.length > 1 ? parts[1] : product.code;
-      
-      billResult = await vtpassBuyBill(
-        serviceId,
-        customerId,
-        variationCode,
-        reference,
-        billAmount
-      );
-
-      console.log('[BILLS] VTPass response:', billResult);
-      billPaymentSuccess = billResult.success;
-    } catch (error) {
-      console.error('[BILLS] VTPass bill payment error:', error);
-    }
-
-    if (!billPaymentSuccess) {
-      throw new Error(billResult.message || 'Bill payment failed. Please try again.');
     }
 
     const transaction = await prisma.$transaction(async (tx) => {
@@ -177,7 +149,7 @@ export class VtpassBillService {
           currency: 'NGN',
           amount: totalAmount,
           fee,
-          status: 'success',
+          status: 'pending',
           reference,
           description: `${product.name} payment for ${customerId}`,
           metadata: {
@@ -193,8 +165,48 @@ export class VtpassBillService {
       });
     });
 
-    console.log('[BILLS] Bill payment successful:', reference);
-    return transaction as unknown as Transaction;
+    try {
+      console.log('[BILLS] Processing VTPass bill payment:', { serviceId, productCode: product.code, customerId, amount: billAmount });
+
+      const parts = productId.split(':');
+      const variationCode = parts.length > 1 ? parts[1] : product.code;
+
+      const billResult = await vtpassBuyBill(
+        serviceId,
+        customerId,
+        variationCode,
+        reference,
+        billAmount
+      );
+
+      console.log('[BILLS] VTPass response:', billResult);
+
+      if (billResult.success) {
+        await prisma.transaction.update({
+          where: { id: transaction.id },
+          data: { status: 'success' },
+        });
+
+        console.log('[BILLS] Bill payment successful:', reference);
+        return { ...transaction, status: 'success' } as unknown as Transaction;
+      }
+
+      throw new Error(billResult.message || 'Bill payment failed');
+    } catch (error) {
+      await prisma.$transaction(async (tx) => {
+        await tx.wallet.update({
+          where: { id: wallet.id },
+          data: { balance: { increment: totalAmount } },
+        });
+
+        await tx.transaction.update({
+          where: { id: transaction.id },
+          data: { status: 'failed', description: `Failed: ${error instanceof Error ? error.message : 'VTPass error'}` },
+        });
+      });
+
+      throw new Error(`Bill payment failed. Amount refunded. ${error instanceof Error ? error.message : ''}`);
+    }
   }
 
   async verifyPayment(reference: string): Promise<{ status: string; amount: number }> {

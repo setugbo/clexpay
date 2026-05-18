@@ -1,9 +1,7 @@
-import { PrismaClient } from '@prisma/client';
 import { IBillService } from '../../interfaces/bill.service.interface';
 import { BillService, BillProduct, Transaction } from '@/types';
 import { generateReference } from '@/lib/utils';
-
-const prisma = new PrismaClient();
+import prisma from '@/lib/prisma';
 
 const BILL_SERVICES: BillService[] = [
   {

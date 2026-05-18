@@ -83,6 +83,17 @@ export async function PUT(request: NextRequest) {
       create: { key, value },
     });
 
+    await prisma.activityLog.create({
+      data: {
+        userId: (session.user as { id?: string }).id,
+        action: 'settings.updated',
+        entityType: 'setting',
+        entityId: key,
+        details: { key, value },
+        ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip'),
+      },
+    });
+
     return NextResponse.json({ success: true, data: setting });
   } catch (error) {
     console.error('Update settings error:', error);

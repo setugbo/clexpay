@@ -2,11 +2,17 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { generateOTP } from '@/lib/utils';
 import { sendOTPEmail } from '@/lib/email';
+import { checkRateLimit, getRateLimitIdentifier } from '@/lib/rate-limit';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
   try {
+    const { allowed } = await checkRateLimit(getRateLimitIdentifier(request), '/api/auth/resend-otp', { maxRequests: 3, windowMs: 60 * 1000 });
+    if (!allowed) {
+      return NextResponse.json({ success: false, error: 'Too many requests. Please try again later.' }, { status: 429 });
+    }
+
     const body = await request.json();
     const { email } = body;
 

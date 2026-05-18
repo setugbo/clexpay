@@ -1,9 +1,7 @@
-import { PrismaClient } from '@prisma/client';
 import { GiftCardCategory, GiftCardProduct, Transaction } from '@/types';
 import { generateReference } from '@/lib/utils';
 import { reloadlyService } from '@/lib/services/reloadly';
-
-const prisma = new PrismaClient();
+import prisma from '@/lib/prisma';
 
 const DYNAMIC_FEES: Record<string, number> = {
   'steam': 5, 'playstation': 5, 'xbox': 5, 'nintendo': 5,

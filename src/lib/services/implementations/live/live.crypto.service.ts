@@ -1,10 +1,8 @@
-import { PrismaClient } from '@prisma/client';
 import { ICryptoService } from '../../interfaces/crypto.service.interface';
 import { ExchangeRates, Transaction } from '@/types';
 import { generateReference } from '@/lib/utils';
 import { getExchangeRates, getFees } from '../../factory';
-
-const prisma = new PrismaClient();
+import prisma from '@/lib/prisma';
 
 export class LiveCryptoService implements ICryptoService {
   async getRates(): Promise<ExchangeRates> {

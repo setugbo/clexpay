@@ -1,9 +1,7 @@
-import { PrismaClient } from '@prisma/client';
 import { IWalletService } from '../../interfaces/wallet.service.interface';
 import { Wallet, Transaction } from '@/types';
 import { generateReference } from '@/lib/utils';
-
-const prisma = new PrismaClient();
+import prisma from '@/lib/prisma';
 
 export class DemoWalletService implements IWalletService {
   async getWallets(userId: string): Promise<Wallet[]> {

@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import prisma from '@/lib/prisma';
 import { generateOTP } from '@/lib/utils';
 import { sendOTPEmail } from '@/lib/email';
+import { checkRateLimit, getRateLimitIdentifier } from '@/lib/rate-limit';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,6 +30,11 @@ function validatePassword(password: string): { valid: boolean; message: string }
 
 export async function POST(request: NextRequest) {
   try {
+    const { allowed } = await checkRateLimit(getRateLimitIdentifier(request), '/api/auth/register', { maxRequests: 5, windowMs: 60 * 1000 });
+    if (!allowed) {
+      return NextResponse.json({ success: false, error: 'Too many requests. Please try again later.' }, { status: 429 });
+    }
+
     const body = await request.json();
     const { email, password, firstName, lastName, phone } = body;
 

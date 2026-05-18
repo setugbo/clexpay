@@ -93,9 +93,9 @@ export class TatumCryptoService {
     const fee = (amount * 0.5) / 100;
     const totalCost = amount + fee;
 
-    console.log('[TATUM] Buy crypto:', { userId, fromCurrency, toCurrency, amount, cryptoAmount, rate });
+    console.log('[TATUM] Buy crypto:', { userId, fromCurrency, toCurrency, amount, cryptoAmount, fee, totalCost, rate });
 
-    return await this.executeTrade(userId, fromCurrency, toCurrency, amount, cryptoAmount, fee, 'buy');
+    return await this.executeTrade(userId, fromCurrency, toCurrency, totalCost, cryptoAmount, fee, 'buy');
   }
 
   async sellCrypto(userId: string, fromCurrency: string, toCurrency: string, amount: number): Promise<Transaction> {
@@ -105,11 +105,11 @@ export class TatumCryptoService {
 
     const fiatAmount = amount * rate;
     const fee = (fiatAmount * 0.5) / 100;
-    const netAmount = fiatAmount - fee;
+    const netFiat = fiatAmount - fee;
 
-    console.log('[TATUM] Sell crypto:', { userId, fromCurrency, toCurrency, amount, netAmount, rate });
+    console.log('[TATUM] Sell crypto:', { userId, fromCurrency, toCurrency, amount, netFiat, fee, rate });
 
-    return await this.executeTrade(userId, fromCurrency, toCurrency, amount, netAmount, fee, 'sell');
+    return await this.executeTrade(userId, fromCurrency, toCurrency, amount, netFiat, fee, 'sell');
   }
 
   async swapCrypto(userId: string, fromCurrency: string, toCurrency: string, amount: number): Promise<Transaction> {
@@ -121,7 +121,7 @@ export class TatumCryptoService {
     const fee = (toAmount * 0.3) / 100;
     const netAmount = toAmount - fee;
 
-    console.log('[TATUM] Swap crypto:', { userId, fromCurrency, toCurrency, amount, netAmount, rate });
+    console.log('[TATUM] Swap crypto:', { userId, fromCurrency, toCurrency, amount, netAmount, fee, rate });
 
     return await this.executeTrade(userId, fromCurrency, toCurrency, amount, netAmount, fee, 'swap');
   }

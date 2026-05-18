@@ -1,9 +1,7 @@
-import { PrismaClient } from '@prisma/client';
 import { ICryptoService } from '../../interfaces/crypto.service.interface';
 import { ExchangeRates, Transaction } from '@/types';
 import { generateReference } from '@/lib/utils';
-
-const prisma = new PrismaClient();
+import prisma from '@/lib/prisma';
 
 const DEMO_RATES: ExchangeRates = {
   BTC_NGN: 50000000,

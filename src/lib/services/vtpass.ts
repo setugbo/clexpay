@@ -32,8 +32,9 @@ export async function getServices(): Promise<{ services: Service[] }> {
     const response = await fetch(`${VTPASS_BASE_URL}/services`, {
       method: 'GET',
       headers: {
-        'Authorization': `Bearer ${VTPASS_API_KEY}`,
-        'PublicKey': VTPASS_PUBLIC_KEY || '',
+        'api-key': VTPASS_API_KEY,
+        'public-key': VTPASS_PUBLIC_KEY || '',
+        'Content-Type': 'application/json',
       },
     });
 
@@ -77,8 +78,8 @@ export async function buyBill(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${VTPASS_API_KEY}`,
-        'PublicKey': VTPASS_PUBLIC_KEY || '',
+        'api-key': VTPASS_API_KEY,
+        'public-key': VTPASS_PUBLIC_KEY || '',
       },
       body: JSON.stringify({
         serviceID: serviceId,
@@ -131,8 +132,9 @@ export async function verifyTransaction(reference: string): Promise<{
     const response = await fetch(`${VTPASS_BASE_URL}/query-request-status/${reference}`, {
       method: 'GET',
       headers: {
-        'Authorization': `Bearer ${VTPASS_API_KEY}`,
-        'PublicKey': VTPASS_PUBLIC_KEY || '',
+        'api-key': VTPASS_API_KEY,
+        'public-key': VTPASS_PUBLIC_KEY || '',
+        'Content-Type': 'application/json',
       },
     });
 
