@@ -19,30 +19,34 @@ export async function checkRateLimit(
   const now = new Date();
   const windowStart = new Date(Math.floor(now.getTime() / windowMs) * windowMs);
 
-  const record = await prisma.rateLimit.upsert({
-    where: {
-      identifier_endpoint_windowStart: {
+  try {
+    const record = await prisma.rateLimit.upsert({
+      where: {
+        identifier_endpoint_windowStart: {
+          identifier,
+          endpoint,
+          windowStart,
+        },
+      },
+      update: {
+        count: { increment: 1 },
+      },
+      create: {
         identifier,
         endpoint,
         windowStart,
+        count: 1,
       },
-    },
-    update: {
-      count: { increment: 1 },
-    },
-    create: {
-      identifier,
-      endpoint,
-      windowStart,
-      count: 1,
-    },
-  });
+    });
 
-  const allowed = record.count <= maxRequests;
-  const remaining = Math.max(0, maxRequests - record.count);
-  const resetMs = windowStart.getTime() + windowMs - now.getTime();
+    const allowed = record.count <= maxRequests;
+    const remaining = Math.max(0, maxRequests - record.count);
+    const resetMs = windowStart.getTime() + windowMs - now.getTime();
 
-  return { allowed, remaining, resetMs };
+    return { allowed, remaining, resetMs };
+  } catch {
+    return { allowed: true, remaining: maxRequests, resetMs: windowMs };
+  }
 }
 
 export function getRateLimitIdentifier(request: Request): string {
