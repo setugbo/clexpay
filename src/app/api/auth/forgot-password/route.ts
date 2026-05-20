@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { generateOTP } from '@/lib/utils';
-import { sendOTPEmail } from '@/lib/email';
+import { sendOTPEmail, transporter } from '@/lib/email';
 import { checkRateLimit, getRateLimitIdentifier } from '@/lib/rate-limit';
 
 export const dynamic = 'force-dynamic';
@@ -37,11 +37,16 @@ export async function POST(request: NextRequest) {
       data: { otpCode, otpExpiresAt },
     });
 
-    await sendOTPEmail(email, otpCode);
+    const emailSent = await sendOTPEmail(email, otpCode);
+
+    if (!emailSent) {
+      console.log(`[FORGOT-PASSWORD] OTP for ${email}: ${otpCode}`);
+    }
 
     return NextResponse.json({
       success: true,
       message: 'If the email exists, a reset code has been sent.',
+      ...(emailSent ? {} : { otp: otpCode, warning: 'SMTP not configured — OTP shown here for testing' }),
     });
   } catch (error) {
     console.error('Forgot password error:', error);
