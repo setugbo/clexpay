@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Search, User, Shield, Trash2 } from 'lucide-react';
+import { Loader2, Search, User, Shield, Trash2, Key } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -62,6 +62,7 @@ export default function AdminUsersPage() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [editUser, setEditUser] = useState<UserData | null>(null);
+  const [resetPassword, setResetPassword] = useState<{ id: string; email: string } | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ['admin-users', page, search],
@@ -262,6 +263,15 @@ export default function AdminUsersPage() {
                 <Button variant="outline" className="flex-1" onClick={() => setEditUser(null)}>
                   Cancel
                 </Button>
+                <Button
+                  variant="outline"
+                  className="text-red-500 border-red-200 hover:bg-red-50"
+                  onClick={() => {
+                    setResetPassword({ id: editUser.id, email: editUser.email });
+                  }}
+                >
+                  <Key className="h-4 w-4 mr-2" /> Reset Password
+                </Button>
                 <Button className="flex-1 bg-emerald-600 hover:bg-emerald-700" onClick={() => mutation.mutate()}>
                   {mutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Save Changes'}
                 </Button>
@@ -270,6 +280,77 @@ export default function AdminUsersPage() {
           </Card>
         </div>
       )}
+
+      {resetPassword && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <CardTitle>Reset Password</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm text-slate-500">Set a new password for <strong>{resetPassword.email}</strong></p>
+              <ResetPasswordForm
+                userId={resetPassword.id}
+                onClose={() => setResetPassword(null)}
+                onSuccess={() => {
+                  setResetPassword(null);
+                  queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+                  toast({ title: 'Password reset successfully', variant: 'success' });
+                }}
+              />
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
+  );
+}
+
+function ResetPasswordForm({ userId, onClose, onSuccess }: { userId: string; onClose: () => void; onSuccess: () => void }) {
+  const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+    if (password !== confirm) { setError('Passwords do not match'); setLoading(false); return; }
+    if (password.length < 8) { setError('Minimum 8 characters'); setLoading(false); return; }
+    try {
+      const res = await fetch(`/api/admin/users/${userId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password }),
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error);
+      onSuccess();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      {error && <p className="text-sm text-red-600">{error}</p>}
+      <div className="space-y-2">
+        <Label>New Password</Label>
+        <Input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Min 8 characters" required />
+      </div>
+      <div className="space-y-2">
+        <Label>Confirm Password</Label>
+        <Input type="password" value={confirm} onChange={e => setConfirm(e.target.value)} placeholder="Repeat password" required />
+      </div>
+      <div className="flex gap-2">
+        <Button type="button" variant="outline" className="flex-1" onClick={onClose}>Cancel</Button>
+        <Button type="submit" className="flex-1 bg-emerald-600 hover:bg-emerald-700" disabled={loading}>
+          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Set Password'}
+        </Button>
+      </div>
+    </form>
   );
 }

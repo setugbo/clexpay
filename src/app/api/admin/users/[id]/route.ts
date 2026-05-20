@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import prisma from '@/lib/prisma';
+import { hashPassword } from '@/lib/password';
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -66,7 +67,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 
     const { id } = params;
     const body = await request.json();
-    const { status, role } = body;
+    const { status, role, password } = body;
 
     const targetUser = await prisma.user.findUnique({ where: { id } });
     if (!targetUser) {
@@ -92,6 +93,15 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     const updateData: Record<string, string> = {};
     if (status) updateData.status = status;
     if (role) updateData.role = role;
+    if (password) {
+      if (password.length < 8) {
+        return NextResponse.json({ success: false, error: 'Password must be at least 8 characters' }, { status: 400 });
+      }
+      if (currentUser.role !== 'super_admin') {
+        return NextResponse.json({ success: false, error: 'Only super admins can reset passwords' }, { status: 403 });
+      }
+      updateData.passwordHash = hashPassword(password);
+    }
 
     if (Object.keys(updateData).length === 0) {
       return NextResponse.json({ success: false, error: 'No fields to update' }, { status: 400 });
@@ -109,11 +119,18 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       },
     });
 
+    const logDetails = password
+      ? `${targetUser.email}: password reset by admin`
+      : `Updated user ${targetUser.email}: ${JSON.stringify(updateData)}`;
+
     await prisma.activityLog.create({
       data: {
         userId: currentUser.id,
-        action: 'UPDATE_USER',
-        details: `Updated user ${targetUser.email}: ${JSON.stringify(updateData)}`,
+        action: password ? 'RESET_USER_PASSWORD' : 'UPDATE_USER',
+        entityType: 'user',
+        entityId: id,
+        details: logDetails,
+        ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip'),
       },
     });
 

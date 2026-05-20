@@ -111,6 +111,11 @@ function LoginForm() {
                   'Sign In'
                 )}
               </Button>
+              <div className="text-center">
+                <Link href="/auth/forgot-password" className="text-sm text-emerald-600 hover:underline font-medium">
+                  Forgot password?
+                </Link>
+              </div>
             </form>
 
             <div className="mt-6 text-center text-sm">
