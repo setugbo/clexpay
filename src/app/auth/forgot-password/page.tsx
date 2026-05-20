@@ -13,6 +13,7 @@ export default function ForgotPasswordPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [sent, setSent] = useState(false);
+  const [debugOtp, setDebugOtp] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,6 +31,7 @@ export default function ForgotPasswordPage() {
         setError(data.error);
       } else {
         setSent(true);
+        if (data.otp) setDebugOtp(data.otp);
       }
     } catch {
       setError('Something went wrong. Please try again.');
@@ -50,6 +52,13 @@ export default function ForgotPasswordPage() {
             <CardDescription>
               If an account exists for <strong>{email}</strong>, a reset code has been sent.
             </CardDescription>
+            {debugOtp && (
+              <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg text-center">
+                <p className="text-sm text-amber-700 font-medium">SMTP not configured</p>
+                <p className="text-3xl font-bold text-amber-900 tracking-widest mt-2">{debugOtp}</p>
+                <p className="text-xs text-amber-600 mt-1">Use this code to reset your password</p>
+              </div>
+            )}
           </CardHeader>
           <CardContent className="text-center space-y-4">
             <p className="text-sm text-slate-500">
