@@ -61,6 +61,12 @@ export default function ForgotPasswordPage() {
             )}
           </CardHeader>
           <CardContent className="text-center space-y-4">
+            <Link
+              href={`/auth/reset-password?email=${encodeURIComponent(email)}`}
+              className="block w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-semibold transition-colors"
+            >
+              Enter Reset Code
+            </Link>
             <p className="text-sm text-slate-500">
               Didn&apos;t receive it? Check your spam folder or{' '}
               <button className="text-emerald-600 hover:underline font-medium" onClick={() => setSent(false)}>try again</button>.
