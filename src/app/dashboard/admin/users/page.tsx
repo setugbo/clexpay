@@ -38,6 +38,13 @@ async function fetchUsers(page: number, search: string): Promise<UsersResponse> 
   return data.data;
 }
 
+async function deleteUser(id: string) {
+  const res = await fetch(`/api/admin/users/${id}`, { method: 'DELETE' });
+  const data = await res.json();
+  if (!data.success) throw new Error(data.error);
+  return data;
+}
+
 async function updateUser(id: string, body: { status?: string; role?: string }) {
   const res = await fetch(`/api/admin/users/${id}`, {
     method: 'PUT',
@@ -70,6 +77,17 @@ export default function AdminUsersPage() {
       queryClient.invalidateQueries({ queryKey: ['admin-users'] });
       toast({ title: 'User updated successfully', variant: 'success' });
       setEditUser(null);
+    },
+    onError: (error: Error) => {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteUser(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+      toast({ title: 'User deleted', description: 'User permanently removed', variant: 'success' });
     },
     onError: (error: Error) => {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
@@ -150,13 +168,30 @@ export default function AdminUsersPage() {
                           {timeAgo(new Date(user.createdAt))}
                         </td>
                         <td className="py-3 px-4">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setEditUser(user)}
-                          >
-                            Edit
-                          </Button>
+                          <div className="flex gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setEditUser(user)}
+                            >
+                              Edit
+                            </Button>
+                            {user.role !== 'super_admin' && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                                onClick={() => {
+                                  if (window.confirm(`Permanently delete user ${user.email}? This cannot be undone.`)) {
+                                    deleteMutation.mutate(user.id);
+                                  }
+                                }}
+                                disabled={deleteMutation.isPending}
+                              >
+                                {deleteMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                              </Button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))}

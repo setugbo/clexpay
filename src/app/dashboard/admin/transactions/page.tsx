@@ -1,8 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Search, Eye, AlertTriangle } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Loader2, Search, Eye, Trash2, AlertTriangle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -27,6 +27,13 @@ interface TransactionData {
 interface TransactionsResponse {
   transactions: TransactionData[];
   pagination: { page: number; limit: number; total: number; totalPages: number };
+}
+
+async function deleteTransaction(id: string) {
+  const res = await fetch(`/api/admin/transactions/${id}`, { method: 'DELETE' });
+  const data = await res.json();
+  if (!data.success) throw new Error(data.error);
+  return data;
 }
 
 async function fetchTransactions(page: number, type: string, status: string): Promise<TransactionsResponse> {
@@ -65,6 +72,17 @@ export default function AdminTransactionsPage() {
   const { data, isLoading, isError } = useQuery({
     queryKey: ['admin-transactions', page, type, status],
     queryFn: () => fetchTransactions(page, type, status),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteTransaction(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-transactions'] });
+      setSelectedTx(null);
+    },
+    onError: (error: Error) => {
+      alert('Failed to delete: ' + error.message);
+    },
   });
 
   const handleRetry = () => {
@@ -164,9 +182,24 @@ export default function AdminTransactionsPage() {
                           {timeAgo(new Date(tx.createdAt))}
                         </td>
                         <td className="py-3 px-4">
-                          <Button variant="ghost" size="sm" onClick={() => setSelectedTx(tx)}>
-                            <Eye className="h-4 w-4" />
-                          </Button>
+                          <div className="flex gap-1">
+                            <Button variant="ghost" size="sm" onClick={() => setSelectedTx(tx)}>
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                              onClick={() => {
+                                if (window.confirm(`Delete transaction ${tx.reference}? This cannot be undone.`)) {
+                                  deleteMutation.mutate(tx.id);
+                                }
+                              }}
+                              disabled={deleteMutation.isPending}
+                            >
+                              {deleteMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -239,9 +272,23 @@ export default function AdminTransactionsPage() {
                   <p className="font-medium">{new Date(selectedTx.createdAt).toLocaleString()}</p>
                 </div>
               </div>
-              <Button variant="outline" className="w-full" onClick={() => setSelectedTx(null)}>
-                Close
-              </Button>
+              <div className="flex gap-2">
+                <Button variant="outline" className="flex-1" onClick={() => setSelectedTx(null)}>
+                  Close
+                </Button>
+                <Button
+                  variant="destructive"
+                  className="flex-1"
+                  onClick={() => {
+                    if (window.confirm(`Delete transaction ${selectedTx.reference}? This cannot be undone.`)) {
+                      deleteMutation.mutate(selectedTx.id);
+                    }
+                  }}
+                  disabled={deleteMutation.isPending}
+                >
+                  {deleteMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Trash2 className="h-4 w-4 mr-2" />Delete</>}
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </div>

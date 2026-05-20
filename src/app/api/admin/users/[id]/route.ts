@@ -132,8 +132,8 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
     }
 
     const currentUser = session.user as { id: string; role?: string; email?: string };
-    if (currentUser.role !== 'admin' && currentUser.role !== 'super_admin') {
-      return NextResponse.json({ success: false, error: 'Admin access required' }, { status: 403 });
+    if (currentUser.role !== 'super_admin') {
+      return NextResponse.json({ success: false, error: 'Only super admins can delete users' }, { status: 403 });
     }
 
     const { id } = params;
@@ -144,44 +144,29 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
     }
 
     if (currentUser.id === id) {
-      return NextResponse.json({ success: false, error: 'Cannot deactivate your own account' }, { status: 400 });
+      return NextResponse.json({ success: false, error: 'Cannot delete your own account' }, { status: 400 });
     }
 
     if (targetUser.role === 'super_admin') {
-      return NextResponse.json({ success: false, error: 'Cannot deactivate super admin accounts' }, { status: 403 });
+      return NextResponse.json({ success: false, error: 'Cannot delete super admin accounts' }, { status: 403 });
     }
 
-    if (targetUser.role === 'admin' && currentUser.role !== 'super_admin') {
-      return NextResponse.json({ success: false, error: 'Only super admins can deactivate admin accounts' }, { status: 403 });
-    }
-
-    if (targetUser.status === 'deleted') {
-      return NextResponse.json({ success: false, error: 'User is already deleted' }, { status: 400 });
-    }
-
-    const user = await prisma.user.update({
-      where: { id },
-      data: { status: 'deleted' },
-      select: {
-        id: true,
-        email: true,
-        status: true,
-        role: true,
-        updatedAt: true,
-      },
-    });
+    await prisma.user.delete({ where: { id } });
 
     await prisma.activityLog.create({
       data: {
         userId: currentUser.id,
-        action: 'DEACTIVATE_USER',
-        details: `Deleted user ${targetUser.email}`,
+        action: 'DELETE_USER',
+        entityType: 'user',
+        entityId: id,
+        details: `Permanently deleted user ${targetUser.email} (${targetUser.firstName} ${targetUser.lastName})`,
+        ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip'),
       },
     });
 
-    return NextResponse.json({ success: true, data: user });
+    return NextResponse.json({ success: true, message: 'User permanently deleted' });
   } catch (error) {
-    console.error('Deactivate user error:', error);
-    return NextResponse.json({ success: false, error: 'Failed to deactivate user' }, { status: 500 });
+    console.error('Delete user error:', error);
+    return NextResponse.json({ success: false, error: 'Failed to delete user' }, { status: 500 });
   }
 }
