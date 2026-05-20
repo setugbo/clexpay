@@ -40,6 +40,8 @@ export async function sendOTPEmail(email: string, otp: string): Promise<boolean>
   try {
     await transporter.sendMail({
       from: `"Clexpay" <${process.env.EMAIL_USER || 'noreply@clexpay.com'}>`,
+      to: email,
+      subject: 'Your Clexpay verification code',
       html: `
         <!DOCTYPE html>
         <html>
