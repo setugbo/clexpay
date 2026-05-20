@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import bcrypt from 'bcryptjs';
+import { hashPassword, verifyPassword } from '@/lib/password';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,27 +9,25 @@ export async function GET() {
     const user = await prisma.user.findUnique({ where: { email: 'admin@clexpay.com' } });
     if (!user) return NextResponse.json({ exists: false, message: 'User not found' });
 
-    const storedHash = user.passwordHash;
-    const storedValid = await bcrypt.compare('Clexpay@2024', storedHash);
+    const storedValid = verifyPassword('Clexpay@2024', user.passwordHash);
 
-    const roundtripHash = await bcrypt.hash('Clexpay@2024', 12);
+    const roundtripHash = hashPassword('Clexpay@2024');
     await prisma.user.update({
       where: { email: 'admin@clexpay.com' },
       data: { passwordHash: roundtripHash },
     });
     const reread = await prisma.user.findUnique({ where: { email: 'admin@clexpay.com' } });
-    const roundtripValid = await bcrypt.compare('Clexpay@2024', reread!.passwordHash);
+    const roundtripValid = verifyPassword('Clexpay@2024', reread!.passwordHash);
 
     return NextResponse.json({
       exists: true,
       email: user.email,
-      storedHashPrefix: storedHash.substring(0, 30),
-      storedHashLength: storedHash.length,
+      storedHashPrefix: user.passwordHash.substring(0, 30),
+      storedHashLength: user.passwordHash.length,
       storedHashValid: storedValid,
       roundtripHashPrefix: roundtripHash.substring(0, 30),
       roundtripHashLength: roundtripHash.length,
       roundtripValid,
-      hashesMatch: storedHash === roundtripHash,
       role: user.role,
       status: user.status,
     });
@@ -40,14 +38,13 @@ export async function GET() {
 
 export async function POST() {
   try {
-    const hash = await bcrypt.hash('Clexpay@2024', 12);
     await prisma.user.update({
       where: { email: 'admin@clexpay.com' },
-      data: { passwordHash: hash, role: 'super_admin', emailVerified: true, status: 'active' },
+      data: { passwordHash: hashPassword('Clexpay@2024'), role: 'super_admin', emailVerified: true, status: 'active' },
     });
     await prisma.user.update({
       where: { email: 'john.doe@example.com' },
-      data: { passwordHash: await bcrypt.hash('Demo@1234', 12), role: 'user', emailVerified: true, status: 'active' },
+      data: { passwordHash: hashPassword('Demo@1234'), role: 'user', emailVerified: true, status: 'active' },
     });
     return NextResponse.json({ success: true, message: 'Passwords reset. Try logging in now.' });
   } catch (error) {

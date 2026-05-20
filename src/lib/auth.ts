@@ -1,7 +1,7 @@
 import { NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
-import bcrypt from 'bcryptjs';
 import prisma from '@/lib/prisma';
+import { verifyPassword } from '@/lib/password';
 
 /** JWT + credentials only — no OAuth session tables. PrismaAdapter was removed because the schema has no Account/Session/VerificationToken models. */
 export const authOptions: NextAuthOptions = {
@@ -33,7 +33,7 @@ export const authOptions: NextAuthOptions = {
           throw new Error('Account not found');
         }
 
-        const isValid = await bcrypt.compare(credentials.password, user.passwordHash);
+        const isValid = verifyPassword(credentials.password, user.passwordHash);
 
         if (!isValid) {
           throw new Error('Invalid email or password');

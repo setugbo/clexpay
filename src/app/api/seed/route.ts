@@ -1,12 +1,8 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import bcrypt from 'bcryptjs';
+import { hashPassword } from '@/lib/password';
 
 export const dynamic = 'force-dynamic';
-
-async function hashPassword(password: string): Promise<string> {
-  return bcrypt.hash(password, 12);
-}
 
 async function seedDatabase() {
   await prisma.transaction.deleteMany({});
@@ -19,7 +15,7 @@ async function seedDatabase() {
   const superAdmin = await prisma.user.create({
     data: {
       email: 'admin@clexpay.com',
-      passwordHash: await hashPassword('Clexpay@2024'),
+      passwordHash: hashPassword('Clexpay@2024'),
       firstName: 'Admin',
       lastName: 'User',
       role: 'super_admin',
@@ -31,7 +27,7 @@ async function seedDatabase() {
   const demoUser = await prisma.user.create({
     data: {
       email: 'john.doe@example.com',
-      passwordHash: await hashPassword('Demo@1234'),
+      passwordHash: hashPassword('Demo@1234'),
       firstName: 'John',
       lastName: 'Doe',
       role: 'user',

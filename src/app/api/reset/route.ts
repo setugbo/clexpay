@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import prisma from '@/lib/prisma';
-import bcrypt from 'bcryptjs';
+import { hashPassword } from '@/lib/password';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,7 +26,7 @@ export async function POST() {
     const admin = await prisma.user.create({
       data: {
         email: 'admin@clexpay.com',
-        passwordHash: await bcrypt.hash('Clexpay@2024', 12),
+        passwordHash: hashPassword('Clexpay@2024'),
         firstName: 'Admin',
         lastName: 'User',
         phone: '+2348012345678',
@@ -48,7 +48,7 @@ export async function POST() {
     const demo = await prisma.user.create({
       data: {
         email: 'john.doe@example.com',
-        passwordHash: await bcrypt.hash('Demo@1234', 12),
+        passwordHash: hashPassword('Demo@1234'),
         firstName: 'John',
         lastName: 'Doe',
         phone: '+2348012345678',

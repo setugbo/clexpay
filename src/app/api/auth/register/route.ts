@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import bcrypt from 'bcryptjs';
 import prisma from '@/lib/prisma';
 import { generateOTP } from '@/lib/utils';
 import { sendOTPEmail } from '@/lib/email';
 import { checkRateLimit, getRateLimitIdentifier } from '@/lib/rate-limit';
+import { hashPassword } from '@/lib/password';
 
 export const dynamic = 'force-dynamic';
 
@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const passwordHash = await bcrypt.hash(password, 12);
+    const passwordHash = hashPassword(password);
     const otpCode = generateOTP();
     const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
